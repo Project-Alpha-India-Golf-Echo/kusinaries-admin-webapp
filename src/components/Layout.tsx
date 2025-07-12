@@ -1,12 +1,8 @@
 import { useState } from 'react'
 import { Outlet } from 'react-router-dom'
-import { Button } from './ui/button'
 import { Sidebar } from './Sidebar'
-import { useAuth } from '../contexts/AuthContext'
-import { Menu } from 'lucide-react'
 
 export const Layout = () => {
-  const { user } = useAuth()
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
 

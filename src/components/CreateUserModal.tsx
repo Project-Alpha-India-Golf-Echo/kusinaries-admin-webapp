@@ -3,6 +3,7 @@ import { Button } from './ui/button';
 import { Input } from './ui/input';
 import { Label } from './ui/label';
 import { Card } from './ui/card';
+import { createUserAccount } from '../lib/supabaseQueries';
 
 interface CreateUserModalProps {
   isOpen: boolean;
@@ -26,7 +27,6 @@ export const CreateUserModal = ({ isOpen, onClose, onUserCreated }: CreateUserMo
     setError(null);
 
     try {
-      const { createUserAccount } = await import('../lib/supabaseQueries');
       const result = await createUserAccount(
         formData.email,
         formData.password,
