@@ -293,3 +293,547 @@ export const updateUserRole = async (
     return { success: false, error: 'Failed to update user role' };
   }
 };
+
+// ============================================
+// MEAL CURATION SYSTEM QUERIES
+// ============================================
+
+import type { 
+  Meal, 
+  CreateMealData, 
+  Ingredient, 
+  DietaryTag, 
+  MealFilters,
+  IngredientCategory 
+} from '../types';
+
+// ===== INGREDIENT QUERIES =====
+
+// Get all ingredients
+export const getAllIngredients = async (): Promise<{ success: boolean; data?: Ingredient[]; error?: string }> => {
+  try {
+    const { data, error } = await supabase
+      .from('ingredients')
+      .select('*')
+      .order('name');
+
+    if (error) {
+      console.error('Error fetching ingredients:', error);
+      return { success: false, error: error.message };
+    }
+
+    return { success: true, data };
+  } catch (error) {
+    console.error('Error in getAllIngredients:', error);
+    return { success: false, error: 'Failed to fetch ingredients' };
+  }
+};
+
+// Get ingredients by category
+export const getIngredientsByCategory = async (category: IngredientCategory): Promise<{ success: boolean; data?: Ingredient[]; error?: string }> => {
+  try {
+    const { data, error } = await supabase
+      .from('ingredients')
+      .select('*')
+      .eq('category', category)
+      .order('name');
+
+    if (error) {
+      console.error('Error fetching ingredients by category:', error);
+      return { success: false, error: error.message };
+    }
+
+    return { success: true, data };
+  } catch (error) {
+    console.error('Error in getIngredientsByCategory:', error);
+    return { success: false, error: 'Failed to fetch ingredients by category' };
+  }
+};
+
+// Create new ingredient
+export const createIngredient = async (
+  name: string,
+  category: IngredientCategory,
+  pricePerKilo: number,
+  imageFile?: File
+): Promise<{ success: boolean; data?: Ingredient; error?: string }> => {
+  try {
+    let imageData = null;
+    let imageMimeType = null;
+
+    if (imageFile) {
+      // Convert file to binary data
+      const arrayBuffer = await imageFile.arrayBuffer();
+      imageData = new Uint8Array(arrayBuffer);
+      imageMimeType = imageFile.type;
+    }
+
+    const { data, error } = await supabase
+      .from('ingredients')
+      .insert({
+        name,
+        category,
+        price_per_kilo: pricePerKilo,
+        image_data: imageData,
+        image_mime_type: imageMimeType
+      })
+      .select()
+      .single();
+
+    if (error) {
+      console.error('Error creating ingredient:', error);
+      return { success: false, error: error.message };
+    }
+
+    return { success: true, data };
+  } catch (error) {
+    console.error('Error in createIngredient:', error);
+    return { success: false, error: 'Failed to create ingredient' };
+  }
+};
+
+// ===== DIETARY TAG QUERIES =====
+
+// Get all dietary tags
+export const getAllDietaryTags = async (): Promise<{ success: boolean; data?: DietaryTag[]; error?: string }> => {
+  try {
+    const { data, error } = await supabase
+      .from('dietary_tags')
+      .select('*')
+      .order('tag_name');
+
+    if (error) {
+      console.error('Error fetching dietary tags:', error);
+      return { success: false, error: error.message };
+    }
+
+    return { success: true, data };
+  } catch (error) {
+    console.error('Error in getAllDietaryTags:', error);
+    return { success: false, error: 'Failed to fetch dietary tags' };
+  }
+};
+
+// ===== MEAL QUERIES =====
+
+// Get all meals with filters
+export const getMealsWithFilters = async (filters: MealFilters = {}): Promise<{ success: boolean; data?: Meal[]; error?: string }> => {
+  try {
+    let query = supabase
+      .from('meals')
+      .select(`
+        *,
+        meal_ingredients (
+          meal_ingredient_id,
+          ingredient_id,
+          quantity,
+          ingredients (*)
+        ),
+        meal_dietary_tags (
+          dietary_tags (*)
+        )
+      `)
+      .eq('is_disabled', false);
+
+    // Apply filters
+    if (filters.category) {
+      query = query.eq('category', filters.category);
+    }
+
+    if (filters.search) {
+      query = query.ilike('name', `%${filters.search}%`);
+    }
+
+    // Apply sorting
+    const sortBy = filters.sort_by || 'created_at';
+    const sortOrder = filters.sort_order || 'desc';
+    query = query.order(sortBy, { ascending: sortOrder === 'asc' });
+
+    const { data, error } = await query;
+
+    if (error) {
+      console.error('Error fetching meals:', error);
+      return { success: false, error: error.message };
+    }
+
+    // Calculate estimated prices and format data
+    const mealsWithPrice = data?.map((meal: any) => {
+      const estimatedPrice = meal.meal_ingredients?.reduce((total: number, mealIngredient: any) => {
+        const ingredient = mealIngredient.ingredients;
+        if (!ingredient) return total;
+
+        // Simple quantity parsing (assumes format like "250g", "1 cup", etc.)
+        const quantityStr = mealIngredient.quantity.toLowerCase().trim();
+        let quantityInKg = 0;
+
+        if (quantityStr.includes('kg')) {
+          quantityInKg = parseFloat(quantityStr.replace(/[^0-9.]/g, '')) || 0;
+        } else if (quantityStr.includes('g')) {
+          quantityInKg = (parseFloat(quantityStr.replace(/[^0-9.]/g, '')) || 0) / 1000;
+        } else if (quantityStr.includes('cup')) {
+          // Rough estimate: 1 cup ≈ 240g for most ingredients
+          quantityInKg = (parseFloat(quantityStr.replace(/[^0-9.]/g, '')) || 0) * 0.24;
+        } else if (quantityStr.includes('piece')) {
+          // Rough estimate: 1 piece ≈ 100g
+          quantityInKg = (parseFloat(quantityStr.replace(/[^0-9.]/g, '')) || 0) * 0.1;
+        } else if (quantityStr.includes('tbsp') || quantityStr.includes('tablespoon')) {
+          // 1 tablespoon ≈ 15g
+          quantityInKg = (parseFloat(quantityStr.replace(/[^0-9.]/g, '')) || 0) * 0.015;
+        } else if (quantityStr.includes('tsp') || quantityStr.includes('teaspoon')) {
+          // 1 teaspoon ≈ 5g
+          quantityInKg = (parseFloat(quantityStr.replace(/[^0-9.]/g, '')) || 0) * 0.005;
+        } else {
+          // If no unit specified, assume grams
+          const numValue = parseFloat(quantityStr.replace(/[^0-9.]/g, ''));
+          if (!isNaN(numValue)) {
+            quantityInKg = numValue / 1000;
+          }
+        }
+
+        return total + (quantityInKg * ingredient.price_per_kilo);
+      }, 0) || 0;
+
+      return {
+        ...meal,
+        estimated_price: estimatedPrice,
+        dietary_tags: meal.meal_dietary_tags?.map((mdt: any) => mdt.dietary_tags).filter(Boolean) || []
+      };
+    }) || [];
+
+    // Apply dietary tag filter after data processing
+    let filteredMeals = mealsWithPrice;
+    if (filters.dietary_tags && filters.dietary_tags.length > 0) {
+      filteredMeals = mealsWithPrice.filter((meal: any) =>
+        filters.dietary_tags!.some((tagId: number) =>
+          meal.dietary_tags?.some((tag: any) => tag.tag_id === tagId)
+        )
+      );
+    }
+
+    // Apply price sorting if needed
+    if (filters.sort_by === 'estimated_price') {
+      filteredMeals.sort((a, b) => {
+        const aPrice = a.estimated_price || 0;
+        const bPrice = b.estimated_price || 0;
+        return filters.sort_order === 'asc' ? aPrice - bPrice : bPrice - aPrice;
+      });
+    }
+
+    return { success: true, data: filteredMeals };
+  } catch (error) {
+    console.error('Error in getMealsWithFilters:', error);
+    return { success: false, error: 'Failed to fetch meals' };
+  }
+};
+
+// Get single meal by ID
+export const getMealById = async (mealId: number): Promise<{ success: boolean; data?: Meal; error?: string }> => {
+  try {
+    const { data, error } = await supabase
+      .from('meals')
+      .select(`
+        *,
+        meal_ingredients (
+          meal_ingredient_id,
+          ingredient_id,
+          quantity,
+          ingredients (*)
+        ),
+        meal_dietary_tags (
+          dietary_tags (*)
+        )
+      `)
+      .eq('meal_id', mealId)
+      .single();
+
+    if (error) {
+      console.error('Error fetching meal:', error);
+      return { success: false, error: error.message };
+    }
+
+    // Calculate estimated price
+    const estimatedPrice = data.meal_ingredients?.reduce((total: number, mealIngredient: any) => {
+      const ingredient = mealIngredient.ingredients;
+      if (!ingredient) return total;
+
+      const quantityStr = mealIngredient.quantity.toLowerCase().trim();
+      let quantityInKg = 0;
+
+      if (quantityStr.includes('kg')) {
+        quantityInKg = parseFloat(quantityStr.replace(/[^0-9.]/g, '')) || 0;
+      } else if (quantityStr.includes('g')) {
+        quantityInKg = (parseFloat(quantityStr.replace(/[^0-9.]/g, '')) || 0) / 1000;
+      } else if (quantityStr.includes('cup')) {
+        quantityInKg = (parseFloat(quantityStr.replace(/[^0-9.]/g, '')) || 0) * 0.24;
+      } else if (quantityStr.includes('piece')) {
+        quantityInKg = (parseFloat(quantityStr.replace(/[^0-9.]/g, '')) || 0) * 0.1;
+      } else if (quantityStr.includes('tbsp') || quantityStr.includes('tablespoon')) {
+        quantityInKg = (parseFloat(quantityStr.replace(/[^0-9.]/g, '')) || 0) * 0.015;
+      } else if (quantityStr.includes('tsp') || quantityStr.includes('teaspoon')) {
+        quantityInKg = (parseFloat(quantityStr.replace(/[^0-9.]/g, '')) || 0) * 0.005;
+      } else {
+        const numValue = parseFloat(quantityStr.replace(/[^0-9.]/g, ''));
+        if (!isNaN(numValue)) {
+          quantityInKg = numValue / 1000;
+        }
+      }
+
+      return total + (quantityInKg * ingredient.price_per_kilo);
+    }, 0) || 0;
+
+    const mealWithPrice = {
+      ...data,
+      estimated_price: estimatedPrice,
+      dietary_tags: data.meal_dietary_tags?.map((mdt: any) => mdt.dietary_tags).filter(Boolean) || []
+    };
+
+    return { success: true, data: mealWithPrice };
+  } catch (error) {
+    console.error('Error in getMealById:', error);
+    return { success: false, error: 'Failed to fetch meal' };
+  }
+};
+
+// Create new meal
+export const createMeal = async (mealData: CreateMealData): Promise<{ success: boolean; data?: Meal; error?: string }> => {
+  try {
+    // Start a transaction by creating the meal first
+    const { data: meal, error: mealError } = await supabase
+      .from('meals')
+      .insert({
+        name: mealData.name,
+        category: mealData.category,
+        recipe: mealData.recipe,
+        picture_data: mealData.picture_data,
+        picture_mime_type: mealData.picture_mime_type
+      })
+      .select()
+      .single();
+
+    if (mealError) {
+      console.error('Error creating meal:', mealError);
+      return { success: false, error: mealError.message };
+    }
+
+    // Add meal ingredients
+    if (mealData.ingredients.length > 0) {
+      const mealIngredients = mealData.ingredients.map(ingredient => ({
+        meal_id: meal.meal_id,
+        ingredient_id: ingredient.ingredient_id,
+        quantity: ingredient.quantity
+      }));
+
+      const { error: ingredientsError } = await supabase
+        .from('meal_ingredients')
+        .insert(mealIngredients);
+
+      if (ingredientsError) {
+        console.error('Error adding meal ingredients:', ingredientsError);
+        // Clean up the meal if ingredients failed
+        await supabase.from('meals').delete().eq('meal_id', meal.meal_id);
+        return { success: false, error: ingredientsError.message };
+      }
+    }
+
+    // Add dietary tags
+    if (mealData.dietary_tag_ids.length > 0) {
+      const mealDietaryTags = mealData.dietary_tag_ids.map(tagId => ({
+        meal_id: meal.meal_id,
+        tag_id: tagId
+      }));
+
+      const { error: tagsError } = await supabase
+        .from('meal_dietary_tags')
+        .insert(mealDietaryTags);
+
+      if (tagsError) {
+        console.error('Error adding meal dietary tags:', tagsError);
+        // Note: We don't clean up here as tags are optional
+      }
+    }
+
+    // Fetch the complete meal data
+    const result = await getMealById(meal.meal_id);
+    return result;
+  } catch (error) {
+    console.error('Error in createMeal:', error);
+    return { success: false, error: 'Failed to create meal' };
+  }
+};
+
+// Update meal
+export const updateMeal = async (mealId: number, mealData: CreateMealData): Promise<{ success: boolean; data?: Meal; error?: string }> => {
+  try {
+    // Update meal basic info
+    const { error: mealError } = await supabase
+      .from('meals')
+      .update({
+        name: mealData.name,
+        category: mealData.category,
+        recipe: mealData.recipe,
+        picture_data: mealData.picture_data,
+        picture_mime_type: mealData.picture_mime_type,
+        updated_at: new Date().toISOString()
+      })
+      .eq('meal_id', mealId);
+
+    if (mealError) {
+      console.error('Error updating meal:', mealError);
+      return { success: false, error: mealError.message };
+    }
+
+    // Delete existing ingredients and tags
+    await supabase.from('meal_ingredients').delete().eq('meal_id', mealId);
+    await supabase.from('meal_dietary_tags').delete().eq('meal_id', mealId);
+
+    // Add new ingredients
+    if (mealData.ingredients.length > 0) {
+      const mealIngredients = mealData.ingredients.map(ingredient => ({
+        meal_id: mealId,
+        ingredient_id: ingredient.ingredient_id,
+        quantity: ingredient.quantity
+      }));
+
+      const { error: ingredientsError } = await supabase
+        .from('meal_ingredients')
+        .insert(mealIngredients);
+
+      if (ingredientsError) {
+        console.error('Error updating meal ingredients:', ingredientsError);
+        return { success: false, error: ingredientsError.message };
+      }
+    }
+
+    // Add new dietary tags
+    if (mealData.dietary_tag_ids.length > 0) {
+      const mealDietaryTags = mealData.dietary_tag_ids.map(tagId => ({
+        meal_id: mealId,
+        tag_id: tagId
+      }));
+
+      const { error: tagsError } = await supabase
+        .from('meal_dietary_tags')
+        .insert(mealDietaryTags);
+
+      if (tagsError) {
+        console.error('Error updating meal dietary tags:', tagsError);
+      }
+    }
+
+    // Fetch the updated meal data
+    const result = await getMealById(mealId);
+    return result;
+  } catch (error) {
+    console.error('Error in updateMeal:', error);
+    return { success: false, error: 'Failed to update meal' };
+  }
+};
+
+// Archive/disable meal
+export const archiveMeal = async (mealId: number): Promise<{ success: boolean; error?: string }> => {
+  try {
+    const { error } = await supabase
+      .from('meals')
+      .update({ is_disabled: true })
+      .eq('meal_id', mealId);
+
+    if (error) {
+      console.error('Error archiving meal:', error);
+      return { success: false, error: error.message };
+    }
+
+    return { success: true };
+  } catch (error) {
+    console.error('Error in archiveMeal:', error);
+    return { success: false, error: 'Failed to archive meal' };
+  }
+};
+
+// Restore archived meal
+export const restoreMeal = async (mealId: number): Promise<{ success: boolean; error?: string }> => {
+  try {
+    const { error } = await supabase
+      .from('meals')
+      .update({ is_disabled: false })
+      .eq('meal_id', mealId);
+
+    if (error) {
+      console.error('Error restoring meal:', error);
+      return { success: false, error: error.message };
+    }
+
+    return { success: true };
+  } catch (error) {
+    console.error('Error in restoreMeal:', error);
+    return { success: false, error: 'Failed to restore meal' };
+  }
+};
+
+// Get archived meals
+export const getArchivedMeals = async (): Promise<{ success: boolean; data?: Meal[]; error?: string }> => {
+  try {
+    const { data, error } = await supabase
+      .from('meals')
+      .select(`
+        *,
+        meal_ingredients (
+          meal_ingredient_id,
+          ingredient_id,
+          quantity,
+          ingredients (*)
+        ),
+        meal_dietary_tags (
+          dietary_tags (*)
+        )
+      `)
+      .eq('is_disabled', true)
+      .order('updated_at', { ascending: false });
+
+    if (error) {
+      console.error('Error fetching archived meals:', error);
+      return { success: false, error: error.message };
+    }
+
+    const mealsWithPrice = data?.map((meal: any) => {
+      const estimatedPrice = meal.meal_ingredients?.reduce((total: number, mealIngredient: any) => {
+        const ingredient = mealIngredient.ingredients;
+        if (!ingredient) return total;
+
+        const quantityStr = mealIngredient.quantity.toLowerCase().trim();
+        let quantityInKg = 0;
+
+        if (quantityStr.includes('kg')) {
+          quantityInKg = parseFloat(quantityStr.replace(/[^0-9.]/g, '')) || 0;
+        } else if (quantityStr.includes('g')) {
+          quantityInKg = (parseFloat(quantityStr.replace(/[^0-9.]/g, '')) || 0) / 1000;
+        } else if (quantityStr.includes('cup')) {
+          quantityInKg = (parseFloat(quantityStr.replace(/[^0-9.]/g, '')) || 0) * 0.24;
+        } else if (quantityStr.includes('piece')) {
+          quantityInKg = (parseFloat(quantityStr.replace(/[^0-9.]/g, '')) || 0) * 0.1;
+        } else if (quantityStr.includes('tbsp') || quantityStr.includes('tablespoon')) {
+          quantityInKg = (parseFloat(quantityStr.replace(/[^0-9.]/g, '')) || 0) * 0.015;
+        } else if (quantityStr.includes('tsp') || quantityStr.includes('teaspoon')) {
+          quantityInKg = (parseFloat(quantityStr.replace(/[^0-9.]/g, '')) || 0) * 0.005;
+        } else {
+          const numValue = parseFloat(quantityStr.replace(/[^0-9.]/g, ''));
+          if (!isNaN(numValue)) {
+            quantityInKg = numValue / 1000;
+          }
+        }
+
+        return total + (quantityInKg * ingredient.price_per_kilo);
+      }, 0) || 0;
+
+      return {
+        ...meal,
+        estimated_price: estimatedPrice,
+        dietary_tags: meal.meal_dietary_tags?.map((mdt: any) => mdt.dietary_tags).filter(Boolean) || []
+      };
+    }) || [];
+
+    return { success: true, data: mealsWithPrice };
+  } catch (error) {
+    console.error('Error in getArchivedMeals:', error);
+    return { success: false, error: 'Failed to fetch archived meals' };
+  }
+};

@@ -9,11 +9,25 @@ import { DashboardPage } from './pages/DashboardPage'
 import { UsersPage } from './pages/UsersPage'
 import { SettingsPage } from './pages/SettingsPage'
 import { CreateUserModal } from './components/CreateUserModal'
+import { CreateEditMealModal } from './components/CreateEditMealModal'
+import { AddIngredientModal } from './components/AddIngredientModal'
 import './index.css'
 import { MealCurationPage } from './pages/MealCurationPage'
 
 function AppContent() {
-  const { showCreateUserModal, closeCreateUserModal, onUserCreated } = useModal();
+  const { 
+    showCreateUserModal, 
+    closeCreateUserModal, 
+    onUserCreated,
+    showCreateEditMealModal,
+    editingMeal,
+    closeCreateEditMealModal,
+    onMealSaved,
+    showAddIngredientModal,
+    initialIngredientCategory,
+    closeAddIngredientModal,
+    onIngredientAdded
+  } = useModal();
 
   return (
     <Router>
@@ -35,11 +49,25 @@ function AppContent() {
         </Route>
       </Routes>
       
-      {/* Global Modal */}
+      {/* Global Modals */}
       <CreateUserModal
         isOpen={showCreateUserModal}
         onClose={closeCreateUserModal}
         onUserCreated={onUserCreated}
+      />
+      
+      <CreateEditMealModal
+        isOpen={showCreateEditMealModal}
+        onClose={closeCreateEditMealModal}
+        onMealSaved={onMealSaved}
+        editingMeal={editingMeal}
+      />
+      
+      <AddIngredientModal
+        isOpen={showAddIngredientModal}
+        onClose={closeAddIngredientModal}
+        onIngredientAdded={onIngredientAdded}
+        initialCategory={initialIngredientCategory}
       />
     </Router>
   );

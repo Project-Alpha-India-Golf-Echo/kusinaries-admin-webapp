@@ -1,5 +1,105 @@
 
+import { useState, useEffect } from 'react';
+import { Plus, Loader2, Utensils, Archive } from 'lucide-react';
+import { Button } from '../components/ui/button';
+import { MealCard } from '../components/MealCard';
+import { MealFiltersComponent } from '../components/MealFiltersComponent';
+import { useModal } from '../contexts/ModalContext';
+import { 
+  getMealsWithFilters, 
+  getArchivedMeals, 
+  getAllDietaryTags, 
+  archiveMeal, 
+  restoreMeal 
+} from '../lib/supabaseQueries';
+import type { Meal, MealFilters, DietaryTag } from '../types';
+
 export const MealCurationPage = () => {
+  const [meals, setMeals] = useState<Meal[]>([]);
+  const [dietaryTags, setDietaryTags] = useState<DietaryTag[]>([]);
+  const [filters, setFilters] = useState<MealFilters>({});
+  const [isLoading, setIsLoading] = useState(true);
+  const [showArchived, setShowArchived] = useState(false);
+  const [error, setError] = useState('');
+
+  // Get modal functions from context
+  const { openCreateMealModal, openEditMealModal } = useModal();
+
+  // Load initial data
+  useEffect(() => {
+    loadDietaryTags();
+  }, []);
+
+  // Load meals when filters or showArchived changes
+  useEffect(() => {
+    loadMeals();
+  }, [filters, showArchived]);
+
+  // Listen for meal saved events
+  useEffect(() => {
+    const handleMealSaved = () => {
+      loadMeals();
+    };
+
+    window.addEventListener('mealSaved', handleMealSaved);
+    return () => window.removeEventListener('mealSaved', handleMealSaved);
+  }, []);
+
+  const loadDietaryTags = async () => {
+    const result = await getAllDietaryTags();
+    if (result.success && result.data) {
+      setDietaryTags(result.data);
+    }
+  };
+
+  const loadMeals = async () => {
+    setIsLoading(true);
+    setError('');
+
+    try {
+      const result = showArchived 
+        ? await getArchivedMeals()
+        : await getMealsWithFilters(filters);
+
+      if (result.success && result.data) {
+        setMeals(result.data);
+      } else {
+        setError(result.error || 'Failed to load meals');
+      }
+    } catch (err) {
+      setError('An unexpected error occurred');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleEditMeal = (meal: Meal) => {
+    openEditMealModal(meal);
+  };
+
+  const handleArchiveMeal = async (mealId: number) => {
+    const result = await archiveMeal(mealId);
+    if (result.success) {
+      loadMeals();
+    } else {
+      setError(result.error || 'Failed to archive meal');
+    }
+  };
+
+  const handleRestoreMeal = async (mealId: number) => {
+    const result = await restoreMeal(mealId);
+    if (result.success) {
+      loadMeals();
+    } else {
+      setError(result.error || 'Failed to restore meal');
+    }
+  };
+
+  const handleToggleArchived = () => {
+    setShowArchived(!showArchived);
+    setFilters({}); // Reset filters when switching views
+  };
+
   return (
     <div className="min-h-screen animate-in fade-in duration-500">
       <div className="max-w-7xl">
@@ -7,70 +107,133 @@ export const MealCurationPage = () => {
         <div className="mb-8">
           <div className="flex items-center justify-between">
             <div>
-              <h2 className="text-3xl font-semibold text-gray-900">Meal Curation</h2>
+              <h2 className="text-3xl font-semibold text-gray-900">
+                Meal Curation {showArchived && '- Archived Meals'}
+              </h2>
               <p className="mt-1 text-sm text-gray-500">
-                Manage and curate meal plans and recipes for your users
+                {showArchived 
+                  ? 'Manage archived meals using the Pinggang Pinoy framework'
+                  : 'Create and manage balanced meals using the Pinggang Pinoy framework'
+                }
               </p>
             </div>
             <div className="flex items-center space-x-3">
-              <button
-                className="bg-gradient-to-r from-green-600 to-green-700 hover:from-green-700 hover:to-green-800 text-white px-5 py-2.5 rounded-lg font-medium transition-all duration-200 flex items-center space-x-2 shadow-lg hover:shadow-xl transform"
-              >
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-                </svg>
-                <span>Add Meal Plan</span>
-              </button>
+              {!showArchived && (
+                <Button
+                  onClick={openCreateMealModal}
+                  className="bg-gradient-to-r from-green-600 to-green-700 hover:from-green-700 hover:to-green-800 text-white px-5 py-2.5 rounded-lg font-medium transition-all duration-200 flex items-center space-x-2 shadow-lg hover:shadow-xl transform"
+                >
+                  <Plus className="w-4 h-4" />
+                  <span>Add New Meal</span>
+                </Button>
+              )}
             </div>
           </div>
         </div>
 
+        {/* Error Display */}
+        {error && (
+          <div className="mb-6 bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg">
+            {error}
+          </div>
+        )}
+
+        {/* Filters */}
+        <MealFiltersComponent
+          filters={filters}
+          onFiltersChange={setFilters}
+          dietaryTags={dietaryTags}
+          showArchived={showArchived}
+          onToggleArchived={handleToggleArchived}
+        />
+
         {/* Content */}
-        <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden hover:shadow-md transition-shadow duration-200">
-          <div className="p-12 text-center">
-            <div className="w-16 h-16 mx-auto text-gray-400 mb-6">
-              <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-              </svg>
+        {isLoading ? (
+          <div className="bg-white rounded-xl border border-gray-200 shadow-sm">
+            <div className="p-12 text-center">
+              <Loader2 className="w-8 h-8 mx-auto text-gray-400 mb-4 animate-spin" />
+              <h3 className="text-lg font-semibold text-gray-900 mb-2">Loading meals...</h3>
+              <p className="text-gray-600">Please wait while we fetch your meal library.</p>
             </div>
-            <h3 className="text-lg font-semibold text-gray-900 mb-2">Meal Curation System</h3>
-            <p className="text-gray-600 mb-6 max-w-md mx-auto">
-              This section will allow you to create, manage, and curate meal plans and recipes for your users. 
-              Features will include meal planning, recipe management, and nutritional tracking.
-            </p>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 max-w-4xl mx-auto">
-              <div className="bg-gradient-to-r from-green-50 to-green-100 rounded-lg p-6 border border-green-200">
-                <div className="w-8 h-8 text-green-600 mb-3">
-                  <svg fill="currentColor" viewBox="0 0 20 20">
-                    <path fillRule="evenodd" d="M3 4a1 1 0 011-1h12a1 1 0 011 1v2a1 1 0 01-1 1H4a1 1 0 01-1-1V4zm0 4a1 1 0 011-1h12a1 1 0 011 1v6a1 1 0 01-1 1H4a1 1 0 01-1-1V8zm2 2a1 1 0 000 2h6a1 1 0 100-2H5z" clipRule="evenodd" />
-                  </svg>
-                </div>
-                <h4 className="font-semibold text-green-900 mb-2">Meal Plans</h4>
-                <p className="text-sm text-green-700">Create and manage weekly meal plans for different dietary preferences</p>
+          </div>
+        ) : meals.length === 0 ? (
+          <div className="bg-white rounded-xl border border-gray-200 shadow-sm">
+            <div className="p-12 text-center">
+              <div className="w-16 h-16 mx-auto text-gray-400 mb-6">
+                {showArchived ? (
+                  <Archive className="w-full h-full" />
+                ) : (
+                  <Utensils className="w-full h-full" />
+                )}
               </div>
-              
-              <div className="bg-gradient-to-r from-blue-50 to-blue-100 rounded-lg p-6 border border-blue-200">
-                <div className="w-8 h-8 text-blue-600 mb-3">
-                  <svg fill="currentColor" viewBox="0 0 20 20">
-                    <path fillRule="evenodd" d="M6 2a2 2 0 00-2 2v12a2 2 0 002 2h8a2 2 0 002-2V4a2 2 0 00-2-2H6zm1 2a1 1 0 000 2h6a1 1 0 100-2H7zm6 7a1 1 0 11-2 0 1 1 0 012 0zm-3 3a1 1 0 11-2 0 1 1 0 012 0z" clipRule="evenodd" />
-                  </svg>
+              <h3 className="text-lg font-semibold text-gray-900 mb-2">
+                {showArchived ? 'No Archived Meals' : 'No Meals Found'}
+              </h3>
+              <p className="text-gray-600 mb-6 max-w-md mx-auto">
+                {showArchived 
+                  ? 'You haven\'t archived any meals yet. Archived meals will appear here.'
+                  : Object.keys(filters).length > 0 
+                    ? 'No meals match your current filters. Try adjusting your search criteria.'
+                    : 'Start building your meal library by creating your first balanced meal using the Pinggang Pinoy framework.'
+                }
+              </p>
+              {!showArchived && Object.keys(filters).length === 0 && (
+                <Button
+                  onClick={openCreateMealModal}
+                  className="bg-gradient-to-r from-green-600 to-green-700 hover:from-green-700 hover:to-green-800"
+                >
+                  <Plus className="w-4 h-4 mr-2" />
+                  Create Your First Meal
+                </Button>
+              )}
+            </div>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+            {meals.map((meal) => (
+              <MealCard
+                key={meal.meal_id}
+                meal={meal}
+                onEdit={handleEditMeal}
+                onArchive={handleArchiveMeal}
+                onRestore={showArchived ? handleRestoreMeal : undefined}
+                isArchived={showArchived}
+              />
+            ))}
+          </div>
+        )}
+
+        {/* Meal Stats Footer */}
+        {meals.length > 0 && (
+          <div className="mt-8 bg-gradient-to-r from-green-50 to-green-100 rounded-xl p-6 border border-green-200">
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-4 text-center">
+              <div>
+                <div className="text-2xl font-bold text-green-800">{meals.length}</div>
+                <div className="text-sm text-green-600">
+                  {showArchived ? 'Archived Meals' : 'Total Meals'}
                 </div>
-                <h4 className="font-semibold text-blue-900 mb-2">Recipe Library</h4>
-                <p className="text-sm text-blue-700">Build a comprehensive library of recipes with nutritional information</p>
               </div>
-              
-              <div className="bg-gradient-to-r from-purple-50 to-purple-100 rounded-lg p-6 border border-purple-200">
-                <div className="w-8 h-8 text-purple-600 mb-3">
-                  <svg fill="currentColor" viewBox="0 0 20 20">
-                    <path fillRule="evenodd" d="M3 3a1 1 0 000 2v8a2 2 0 002 2h2.586l-1.293 1.293a1 1 0 101.414 1.414L10 15.414l2.293 2.293a1 1 0 001.414-1.414L12.414 15H15a2 2 0 002-2V5a1 1 0 100-2H3zm11.707 4.707a1 1 0 00-1.414-1.414L10 9.586 8.707 8.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
-                  </svg>
+              <div>
+                <div className="text-2xl font-bold text-green-800">
+                  {meals.filter(m => m.category === 'Best for Breakfast').length}
                 </div>
-                <h4 className="font-semibold text-purple-900 mb-2">Nutrition Tracking</h4>
-                <p className="text-sm text-purple-700">Track nutritional values and dietary requirements for each meal</p>
+                <div className="text-sm text-green-600">Breakfast Meals</div>
+              </div>
+              <div>
+                <div className="text-2xl font-bold text-green-800">
+                  {meals.filter(m => m.category === 'Best for Lunch').length}
+                </div>
+                <div className="text-sm text-green-600">Lunch Meals</div>
+              </div>
+              <div>
+                <div className="text-2xl font-bold text-green-800">
+                  {meals.filter(m => m.category === 'Best for Dinner').length}
+                </div>
+                <div className="text-sm text-green-600">Dinner Meals</div>
               </div>
             </div>
           </div>
-        </div>
+        )}
       </div>
     </div>
   );
