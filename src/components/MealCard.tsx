@@ -1,7 +1,6 @@
 import React from 'react';
 import { Edit, Archive, RotateCcw, Clock, Tag, Utensils } from 'lucide-react';
 import { Button } from './ui/button';
-import { createImageObjectURL } from '../lib/imageUtils';
 import type { Meal } from '../types';
 
 interface MealCardProps {
@@ -69,9 +68,9 @@ export const MealCard: React.FC<MealCardProps> = ({
     }`}>
       {/* Image */}
       <div className="h-48 bg-gray-100 relative overflow-hidden">
-        {meal.picture_data && meal.picture_mime_type ? (
+        {meal.image_url ? (
           <img
-            src={createImageObjectURL(meal.picture_data, meal.picture_mime_type)}
+            src={meal.image_url}
             alt={meal.name}
             className="w-full h-full object-cover"
           />

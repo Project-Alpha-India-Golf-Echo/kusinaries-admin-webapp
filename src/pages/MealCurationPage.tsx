@@ -102,7 +102,6 @@ export const MealCurationPage = () => {
 
   return (
     <div className="min-h-screen animate-in fade-in duration-500">
-      <div className="max-w-7xl">
         {/* Header */}
         <div className="mb-8">
           <div className="flex items-center justify-between">
@@ -235,6 +234,5 @@ export const MealCurationPage = () => {
           </div>
         )}
       </div>
-    </div>
   );
 };

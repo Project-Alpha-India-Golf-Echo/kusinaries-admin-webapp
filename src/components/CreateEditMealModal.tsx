@@ -1,13 +1,19 @@
-import { useState, useEffect, useRef } from 'react';
-import { X, Loader2, Calculator, Image as ImageIcon } from 'lucide-react';
+import { useState, useEffect, useCallback } from 'react';
+import { Upload, X, Loader2, Calculator } from 'lucide-react';
+import {
+  FileUpload, FileUploadDropzone, FileUploadItem, FileUploadItemDelete,
+  FileUploadItemMetadata, FileUploadItemPreview, FileUploadList, FileUploadTrigger,
+} from "@/components/ui/file-upload";
+import { toast } from "sonner";
 import { Button } from './ui/button';
 import { Input } from './ui/input';
 import { Label } from './ui/label';
 import { IngredientSection } from './IngredientSection';
 import { createMeal, updateMeal, getAllDietaryTags, getAllIngredients } from '../lib/supabaseQueries';
-import { validateImageFile, resizeImage, createImageObjectURL } from '../lib/imageUtils';
+import { uploadImageToStorage, updateImageInStorage, validateImageFileForStorage } from '../lib/storageUtils';
 import type { Meal, MealCategory, Ingredient, DietaryTag, CreateMealData } from '../types';
-
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue, } from "@/components/ui/select"
+import { Textarea } from "@/components/ui/textarea"
 interface CreateEditMealModalProps {
   isOpen: boolean;
   onClose: () => void;
@@ -28,15 +34,12 @@ export const CreateEditMealModal: React.FC<CreateEditMealModalProps> = ({
   });
 
   const [selectedImage, setSelectedImage] = useState<File | null>(null);
-  const [imagePreview, setImagePreview] = useState<string | null>(null);
   const [selectedIngredients, setSelectedIngredients] = useState<{ ingredient_id: number; quantity: string }[]>([]);
   const [selectedDietaryTags, setSelectedDietaryTags] = useState<number[]>([]);
   const [dietaryTags, setDietaryTags] = useState<DietaryTag[]>([]);
   const [allIngredients, setAllIngredients] = useState<Ingredient[]>([]);
   const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState('');
   const [estimatedPrice, setEstimatedPrice] = useState(0);
-  const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Load dietary tags and ingredients and populate form if editing
   useEffect(() => {
@@ -45,11 +48,11 @@ export const CreateEditMealModal: React.FC<CreateEditMealModalProps> = ({
         getAllDietaryTags(),
         getAllIngredients()
       ]);
-      
+
       if (tagsResult.success && tagsResult.data) {
         setDietaryTags(tagsResult.data);
       }
-      
+
       if (ingredientsResult.success && ingredientsResult.data) {
         setAllIngredients(ingredientsResult.data);
       }
@@ -59,17 +62,12 @@ export const CreateEditMealModal: React.FC<CreateEditMealModalProps> = ({
       loadData();
 
       if (editingMeal) {
+        console.log('Setting form data for editing meal:', editingMeal.category);
         setFormData({
           name: editingMeal.name,
           category: editingMeal.category,
           recipe: editingMeal.recipe || ''
         });
-
-        // Set image preview if editing meal has image
-        if (editingMeal.picture_data && editingMeal.picture_mime_type) {
-          const imageUrl = createImageObjectURL(editingMeal.picture_data, editingMeal.picture_mime_type);
-          setImagePreview(imageUrl);
-        }
 
         if (editingMeal.meal_ingredients) {
           setSelectedIngredients(
@@ -89,7 +87,6 @@ export const CreateEditMealModal: React.FC<CreateEditMealModalProps> = ({
         setSelectedIngredients([]);
         setSelectedDietaryTags([]);
         setSelectedImage(null);
-        setImagePreview(null);
       }
     }
   }, [isOpen, editingMeal]);
@@ -140,47 +137,61 @@ export const CreateEditMealModal: React.FC<CreateEditMealModalProps> = ({
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
-    setError('');
 
     try {
       if (!formData.name.trim()) {
-        setError('Meal name is required');
+        toast.error('Meal name is required');
         return;
       }
 
       if (selectedIngredients.length === 0) {
-        setError('Please add at least one ingredient');
+        toast.error('Please add at least one ingredient');
         return;
       }
 
       // Validate that all selected ingredients have quantities
       const invalidIngredients = selectedIngredients.filter(item => !item.quantity.trim());
       if (invalidIngredients.length > 0) {
-        setError('Please specify quantities for all selected ingredients');
+        toast.error('Please specify quantities for all selected ingredients');
         return;
       }
 
       // Process image if selected
-      let pictureData = undefined;
-      let pictureMimeType = undefined;
-      
+      let imageUrl = undefined;
+
       if (selectedImage) {
-        const resizedImage = await resizeImage(selectedImage);
-        const arrayBuffer = await resizedImage.arrayBuffer();
-        pictureData = new Uint8Array(arrayBuffer);
-        pictureMimeType = resizedImage.type;
-      } else if (editingMeal && editingMeal.picture_data && !selectedImage) {
+        // Upload new image to storage
+        if (editingMeal && editingMeal.image_url) {
+          // Update existing image (upload new, delete old)
+          const uploadResult = await updateImageInStorage(selectedImage, editingMeal.image_url, 'meals');
+
+          if (!uploadResult.success) {
+            toast.error(uploadResult.error || 'Failed to upload image');
+            return;
+          }
+
+          imageUrl = uploadResult.url;
+        } else {
+          // Upload new image
+          const uploadResult = await uploadImageToStorage(selectedImage, 'meals');
+
+          if (!uploadResult.success) {
+            toast.error(uploadResult.error || 'Failed to upload image');
+            return;
+          }
+
+          imageUrl = uploadResult.url;
+        }
+      } else if (editingMeal && editingMeal.image_url) {
         // Keep existing image if editing and no new image selected
-        pictureData = editingMeal.picture_data;
-        pictureMimeType = editingMeal.picture_mime_type;
+        imageUrl = editingMeal.image_url;
       }
 
       const mealData: CreateMealData = {
         name: formData.name.trim(),
         category: formData.category,
         recipe: formData.recipe.trim() || undefined,
-        picture_data: pictureData,
-        picture_mime_type: pictureMimeType,
+        image_url: imageUrl,
         ingredients: selectedIngredients.filter(item => item.quantity.trim()),
         dietary_tag_ids: selectedDietaryTags
       };
@@ -190,13 +201,14 @@ export const CreateEditMealModal: React.FC<CreateEditMealModalProps> = ({
         : await createMeal(mealData);
 
       if (result.success) {
+        toast.success(`Meal ${editingMeal ? 'updated' : 'created'} successfully!`);
         onMealSaved();
         onClose();
       } else {
-        setError(result.error || `Failed to ${editingMeal ? 'update' : 'create'} meal`);
+        toast.error(result.error || `Failed to ${editingMeal ? 'update' : 'create'} meal`);
       }
     } catch (err) {
-      setError('An unexpected error occurred');
+      toast.error('An unexpected error occurred');
     } finally {
       setIsLoading(false);
     }
@@ -204,37 +216,6 @@ export const CreateEditMealModal: React.FC<CreateEditMealModalProps> = ({
 
   const handleInputChange = (field: string, value: string) => {
     setFormData(prev => ({ ...prev, [field]: value }));
-    if (error) setError('');
-  };
-
-  const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-
-    const validation = validateImageFile(file);
-    if (!validation.isValid) {
-      setError(validation.error || 'Invalid image file');
-      return;
-    }
-
-    setSelectedImage(file);
-    
-    // Create preview
-    const reader = new FileReader();
-    reader.onload = (e) => {
-      setImagePreview(e.target?.result as string);
-    };
-    reader.readAsDataURL(file);
-    
-    if (error) setError('');
-  };
-
-  const removeImage = () => {
-    setSelectedImage(null);
-    setImagePreview(null);
-    if (fileInputRef.current) {
-      fileInputRef.current.value = '';
-    }
   };
 
   const handleIngredientSelect = (ingredient: Ingredient) => {
@@ -263,6 +244,20 @@ export const CreateEditMealModal: React.FC<CreateEditMealModalProps> = ({
     );
   };
 
+  const handleFileReject = useCallback((file: File, message: string) => {
+    const validation = validateImageFileForStorage(file);
+    const errorMessage = validation.error || message;
+
+    const truncatedFileName = file.name.length > 20
+      ? `${file.name.slice(0, 20)}...`
+      : file.name;
+
+    toast.error(errorMessage, {
+      description: `"${truncatedFileName}" has been rejected`,
+    });
+  }, []);
+
+
   if (!isOpen) return null;
 
   return (
@@ -289,7 +284,7 @@ export const CreateEditMealModal: React.FC<CreateEditMealModalProps> = ({
             {/* Basic Meal Information */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div className="space-y-4">
-                <div>
+                <div className="space-y-2">
                   <Label htmlFor="name">Meal Name *</Label>
                   <Input
                     id="name"
@@ -301,73 +296,82 @@ export const CreateEditMealModal: React.FC<CreateEditMealModalProps> = ({
                   />
                 </div>
 
-                <div>
+                <div className="space-y-2">
                   <Label htmlFor="category">Category *</Label>
-                  <select
-                    id="category"
+                  <Select
+                    key={`${editingMeal?.meal_id || 'new'}-${formData.category}`}
                     value={formData.category}
-                    onChange={(e) => handleInputChange('category', e.target.value as MealCategory)}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500"
+                    onValueChange={(value) => handleInputChange('category', value as MealCategory)}
                     required
                   >
-                    <option value="Best for Breakfast">Best for Breakfast</option>
-                    <option value="Best for Lunch">Best for Lunch</option>
-                    <option value="Best for Dinner">Best for Dinner</option>
-                    <option value="Best for Snacks">Best for Snacks</option>
-                  </select>
+                    <SelectTrigger className="w-full">
+                      <SelectValue placeholder="Select category" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="Best for Breakfast">Best for Breakfast</SelectItem>
+                      <SelectItem value="Best for Lunch">Best for Lunch</SelectItem>
+                      <SelectItem value="Best for Dinner">Best for Dinner</SelectItem>
+                      <SelectItem value="Best for Snacks">Best for Snacks</SelectItem>
+                    </SelectContent>
+                  </Select>
                 </div>
 
-                <div>
-                  <Label htmlFor="picture">Meal Picture (Optional)</Label>
-                  <div className="mt-1">
-                    {imagePreview ? (
-                      <div className="relative">
-                        <img
-                          src={imagePreview}
-                          alt="Meal preview"
-                          className="w-48 h-32 object-cover rounded-lg border border-gray-300"
-                        />
-                        <button
-                          type="button"
-                          onClick={removeImage}
-                          className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full w-6 h-6 flex items-center justify-center text-sm hover:bg-red-600"
-                        >
-                          <X className="w-3 h-3" />
-                        </button>
-                      </div>
-                    ) : (
-                      <div
-                        onClick={() => fileInputRef.current?.click()}
-                        className="w-48 h-32 border-2 border-dashed border-gray-300 rounded-lg flex flex-col items-center justify-center cursor-pointer hover:border-gray-400 transition-colors"
-                      >
-                        <ImageIcon className="w-8 h-8 text-gray-400 mb-2" />
-                        <span className="text-sm text-gray-500">Click to upload</span>
-                      </div>
-                    )}
-                    <input
-                      ref={fileInputRef}
-                      type="file"
-                      accept="image/*"
-                      onChange={handleImageChange}
-                      className="hidden"
-                    />
-                    <p className="mt-1 text-xs text-gray-500">
-                      Supported: JPEG, PNG, GIF, WebP (max 5MB)
-                    </p>
-                  </div>
+                {/* IMAGE UPLOAD MODULE */}
+                <div className="space-y-2">
+                  <Label htmlFor="recipe">Recipe/Instructions</Label>
+                  <Textarea
+                    id="recipe"
+                    value={formData.recipe}
+                    onChange={(e) => handleInputChange('recipe', e.target.value)}
+                    placeholder="Enter cooking instructions..."
+                    rows={4}
+                    className="max-h-32 overflow-y-auto resize-none"
+                  />
+
                 </div>
               </div>
 
-              <div>
-                <Label htmlFor="recipe">Recipe/Instructions</Label>
-                <textarea
-                  id="recipe"
-                  value={formData.recipe}
-                  onChange={(e) => handleInputChange('recipe', e.target.value)}
-                  placeholder="Enter cooking instructions..."
-                  rows={6}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 resize-none"
-                />
+              {/* RECIPE MODULE */}
+              <div className="space-y-2">
+                <Label htmlFor="picture">Meal Picture (Optional)</Label>
+                <FileUpload
+                  maxFiles={1}
+                  maxSize={5 * 1024 * 1024}
+                  className="w-full h-full min-h-[300px]"
+                  value={selectedImage ? [selectedImage] : []}
+                  onValueChange={(files) => setSelectedImage(files[0] ?? null)}
+                  onFileReject={handleFileReject}
+                >
+                  <FileUploadDropzone>
+                    <div className="flex flex-col items-center gap-1 text-center">
+                      <div className="flex items-center justify-center rounded-full border p-2.5">
+                        <Upload className="size-6 text-muted-foreground" />
+                      </div>
+                      <p className="font-medium text-sm">Drag & drop files here</p>
+                      <p className="text-muted-foreground text-xs">
+                        Or click to browse (max 1 files, up to 5MB each)
+                      </p>
+                    </div>
+                    <FileUploadTrigger asChild>
+                      <Button variant="outline" size="sm" className="mt-2 w-fit">
+                        Browse files
+                      </Button>
+                    </FileUploadTrigger>
+                  </FileUploadDropzone>
+                  <FileUploadList>
+                    {selectedImage && (
+                      <FileUploadItem value={selectedImage}>
+                        <FileUploadItemPreview />
+                        <FileUploadItemMetadata />
+                        <FileUploadItemDelete asChild>
+                          <Button variant="ghost" size="icon" className="size-7">
+                            <X />
+                          </Button>
+                        </FileUploadItemDelete>
+                      </FileUploadItem>
+                    )}
+                  </FileUploadList>
+                </FileUpload>
               </div>
             </div>
 
@@ -380,11 +384,10 @@ export const CreateEditMealModal: React.FC<CreateEditMealModalProps> = ({
                     key={tag.tag_id}
                     type="button"
                     onClick={() => handleDietaryTagToggle(tag.tag_id)}
-                    className={`px-3 py-1 rounded-full text-sm transition-colors ${
-                      selectedDietaryTags.includes(tag.tag_id)
-                        ? 'bg-green-600 text-white'
-                        : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                    }`}
+                    className={`px-3 py-1 rounded-full text-sm transition-colors ${selectedDietaryTags.includes(tag.tag_id)
+                      ? 'bg-green-600 text-white'
+                      : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                      }`}
                   >
                     {tag.tag_name}
                   </button>
@@ -428,12 +431,6 @@ export const CreateEditMealModal: React.FC<CreateEditMealModalProps> = ({
                 />
               </div>
             </div>
-
-            {error && (
-              <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg text-sm">
-                {error}
-              </div>
-            )}
           </form>
         </div>
 

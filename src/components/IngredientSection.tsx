@@ -4,7 +4,6 @@ import { Button } from './ui/button';
 import { Input } from './ui/input';
 import { useModal } from '../contexts/ModalContext';
 import { getIngredientsByCategory } from '../lib/supabaseQueries';
-import { createImageObjectURL } from '../lib/imageUtils';
 import type { Ingredient, IngredientCategory } from '../types';
 
 interface IngredientSectionProps {
@@ -162,9 +161,9 @@ export const IngredientSection: React.FC<IngredientSectionProps> = ({
             >
               <div className="flex items-center space-x-3 flex-1">
                 <div className="w-10 h-10 bg-gray-100 rounded-lg flex items-center justify-center">
-                  {ingredient.image_data && ingredient.image_mime_type ? (
+                  {ingredient.image_url ? (
                     <img
-                      src={createImageObjectURL(ingredient.image_data, ingredient.image_mime_type)}
+                      src={ingredient.image_url}
                       alt={ingredient.name}
                       className="w-8 h-8 object-cover rounded"
                     />
@@ -193,7 +192,7 @@ export const IngredientSection: React.FC<IngredientSectionProps> = ({
                     onClick={() => onIngredientRemove(ingredient.ingredient_id)}
                     className="text-red-600 hover:text-red-700 hover:bg-red-50"
                   >
-                    Remove
+                    X
                   </Button>
                 </div>
               ) : (

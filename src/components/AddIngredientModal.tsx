@@ -4,7 +4,7 @@ import { Button } from './ui/button';
 import { Input } from './ui/input';
 import { Label } from './ui/label';
 import { createIngredient } from '../lib/supabaseQueries';
-import { validateImageFile, resizeImage } from '../lib/imageUtils';
+import { validateImageFileForStorage } from '../lib/storageUtils';
 import type { IngredientCategory } from '../types';
 
 interface AddIngredientModalProps {
@@ -43,17 +43,11 @@ export const AddIngredientModal: React.FC<AddIngredientModalProps> = ({
         return;
       }
 
-      // Resize image if selected
-      let imageFile = selectedImage;
-      if (selectedImage) {
-        imageFile = await resizeImage(selectedImage);
-      }
-
       const result = await createIngredient(
         formData.name.trim(),
         formData.category,
         pricePerKilo,
-        imageFile || undefined
+        selectedImage || undefined
       );
 
       if (result.success) {
@@ -81,7 +75,7 @@ export const AddIngredientModal: React.FC<AddIngredientModalProps> = ({
     const file = e.target.files?.[0];
     if (!file) return;
 
-    const validation = validateImageFile(file);
+    const validation = validateImageFileForStorage(file);
     if (!validation.isValid) {
       setError(validation.error || 'Invalid image file');
       return;

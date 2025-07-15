@@ -358,14 +358,18 @@ export const createIngredient = async (
   imageFile?: File
 ): Promise<{ success: boolean; data?: Ingredient; error?: string }> => {
   try {
-    let imageData = null;
-    let imageMimeType = null;
+    let imageUrl = null;
 
     if (imageFile) {
-      // Convert file to binary data
-      const arrayBuffer = await imageFile.arrayBuffer();
-      imageData = new Uint8Array(arrayBuffer);
-      imageMimeType = imageFile.type;
+      // Upload image to storage first
+      const { uploadImageToStorage } = await import('./storageUtils');
+      const uploadResult = await uploadImageToStorage(imageFile, 'ingredients');
+      
+      if (!uploadResult.success) {
+        return { success: false, error: uploadResult.error || 'Failed to upload image' };
+      }
+      
+      imageUrl = uploadResult.url;
     }
 
     const { data, error } = await supabase
@@ -374,8 +378,7 @@ export const createIngredient = async (
         name,
         category,
         price_per_kilo: pricePerKilo,
-        image_data: imageData,
-        image_mime_type: imageMimeType
+        image_url: imageUrl
       })
       .select()
       .single();
@@ -604,8 +607,7 @@ export const createMeal = async (mealData: CreateMealData): Promise<{ success: b
         name: mealData.name,
         category: mealData.category,
         recipe: mealData.recipe,
-        picture_data: mealData.picture_data,
-        picture_mime_type: mealData.picture_mime_type
+        image_url: mealData.image_url
       })
       .select()
       .single();
@@ -671,8 +673,7 @@ export const updateMeal = async (mealId: number, mealData: CreateMealData): Prom
         name: mealData.name,
         category: mealData.category,
         recipe: mealData.recipe,
-        picture_data: mealData.picture_data,
-        picture_mime_type: mealData.picture_mime_type,
+        image_url: mealData.image_url,
         updated_at: new Date().toISOString()
       })
       .eq('meal_id', mealId);

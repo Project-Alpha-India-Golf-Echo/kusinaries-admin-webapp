@@ -25,8 +25,7 @@ export interface Ingredient {
   ingredient_id: number;
   name: string;
   category: IngredientCategory;
-  image_data?: Uint8Array; // Binary image data
-  image_mime_type?: string; // MIME type for the image
+  image_url?: string; // URL to image in Supabase storage
   price_per_kilo: number;
   created_at: string;
 }
@@ -50,8 +49,7 @@ export interface Meal {
   name: string;
   category: MealCategory;
   recipe?: string;
-  picture_data?: Uint8Array; // Binary image data
-  picture_mime_type?: string; // MIME type for the image
+  image_url?: string; // URL to image in Supabase storage
   is_disabled: boolean;
   created_at: string;
   updated_at: string;
@@ -64,8 +62,7 @@ export interface CreateMealData {
   name: string;
   category: MealCategory;
   recipe?: string;
-  picture_data?: Uint8Array; // Binary image data
-  picture_mime_type?: string; // MIME type for the image
+  image_url?: string; // URL to image in Supabase storage
   ingredients: {
     ingredient_id: number;
     quantity: string;

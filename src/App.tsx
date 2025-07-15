@@ -13,11 +13,12 @@ import { CreateEditMealModal } from './components/CreateEditMealModal'
 import { AddIngredientModal } from './components/AddIngredientModal'
 import './index.css'
 import { MealCurationPage } from './pages/MealCurationPage'
+import { Toaster } from "@/components/ui/sonner"
 
 function AppContent() {
-  const { 
-    showCreateUserModal, 
-    closeCreateUserModal, 
+  const {
+    showCreateUserModal,
+    closeCreateUserModal,
     onUserCreated,
     showCreateEditMealModal,
     editingMeal,
@@ -48,21 +49,21 @@ function AppContent() {
           <Route path="*" element={<Navigate to="/" replace />} />
         </Route>
       </Routes>
-      
+
       {/* Global Modals */}
       <CreateUserModal
         isOpen={showCreateUserModal}
         onClose={closeCreateUserModal}
         onUserCreated={onUserCreated}
       />
-      
+
       <CreateEditMealModal
         isOpen={showCreateEditMealModal}
         onClose={closeCreateEditMealModal}
         onMealSaved={onMealSaved}
         editingMeal={editingMeal}
       />
-      
+
       <AddIngredientModal
         isOpen={showAddIngredientModal}
         onClose={closeAddIngredientModal}
@@ -78,6 +79,7 @@ function App() {
     <AuthProvider>
       <ModalProvider>
         <AppContent />
+        <Toaster />
       </ModalProvider>
     </AuthProvider>
   )

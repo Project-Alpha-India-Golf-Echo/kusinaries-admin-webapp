@@ -3,7 +3,7 @@ import { Search, Filter, SortAsc, SortDesc, X } from 'lucide-react';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
 import type { MealCategory, MealFilters, DietaryTag } from '../types';
-
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue, } from "@/components/ui/select"
 interface MealFiltersComponentProps {
   filters: MealFilters;
   onFiltersChange: (filters: MealFilters) => void;
@@ -24,9 +24,9 @@ export const MealFiltersComponent: React.FC<MealFiltersComponentProps> = ({
   };
 
   const handleCategoryChange = (category: string) => {
-    onFiltersChange({ 
-      ...filters, 
-      category: category === 'all' ? undefined : category as MealCategory 
+    onFiltersChange({
+      ...filters,
+      category: category === 'all' ? undefined : category as MealCategory
     });
   };
 
@@ -43,7 +43,7 @@ export const MealFiltersComponent: React.FC<MealFiltersComponentProps> = ({
     const newTags = currentTags.includes(tagId)
       ? currentTags.filter(id => id !== tagId)
       : [...currentTags, tagId];
-    
+
     onFiltersChange({
       ...filters,
       dietary_tags: newTags.length > 0 ? newTags : undefined
@@ -109,17 +109,22 @@ export const MealFiltersComponent: React.FC<MealFiltersComponentProps> = ({
           <label className="block text-sm font-medium text-gray-700 mb-2">
             Meal Category
           </label>
-          <select
+
+          <Select
             value={filters.category || 'all'}
-            onChange={(e) => handleCategoryChange(e.target.value)}
-            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500"
+            onValueChange={(value) => handleCategoryChange(value)}
           >
-            <option value="all">All Categories</option>
-            <option value="Best for Breakfast">Best for Breakfast</option>
-            <option value="Best for Lunch">Best for Lunch</option>
-            <option value="Best for Dinner">Best for Dinner</option>
-            <option value="Best for Snacks">Best for Snacks</option>
-          </select>
+            <SelectTrigger className="w-full">
+              <SelectValue placeholder="Category" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Categories</SelectItem>
+              <SelectItem value="Best for Breakfast">Best for Breakfast</SelectItem>
+              <SelectItem value="Best for Lunch">Best for Lunch</SelectItem>
+              <SelectItem value="Best for Dinner">Best for Dinner</SelectItem>
+              <SelectItem value="Best for Snacks">Best for Snacks</SelectItem>
+            </SelectContent>
+          </Select>
         </div>
 
         {/* Sort */}
@@ -128,18 +133,21 @@ export const MealFiltersComponent: React.FC<MealFiltersComponentProps> = ({
             Sort By
           </label>
           <div className="flex space-x-2">
-            <select
+            <Select
               value={filters.sort_by || 'created_at'}
-              onChange={(e) => handleSortChange(e.target.value, filters.sort_order || 'desc')}
-              className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500"
+              onValueChange={(value) => handleSortChange(value, filters.sort_order || 'desc')}
             >
-              <option value="name">Name</option>
-              <option value="created_at">Date Created</option>
-              <option value="estimated_price">Price</option>
-            </select>
+              <SelectTrigger className="flex-1">
+              <SelectValue placeholder="Sort by" />
+              </SelectTrigger>
+              <SelectContent>
+              <SelectItem value="name">Name</SelectItem>
+              <SelectItem value="created_at">Date Created</SelectItem>
+              <SelectItem value="estimated_price">Price</SelectItem>
+              </SelectContent>
+            </Select>
             <Button
               variant="outline"
-              size="sm"
               onClick={() => handleSortChange(filters.sort_by || 'created_at', filters.sort_order === 'asc' ? 'desc' : 'asc')}
               className="px-3"
             >
@@ -165,11 +173,10 @@ export const MealFiltersComponent: React.FC<MealFiltersComponentProps> = ({
                 key={tag.tag_id}
                 type="button"
                 onClick={() => handleDietaryTagToggle(tag.tag_id)}
-                className={`px-3 py-1 rounded-full text-sm transition-colors ${
-                  filters.dietary_tags?.includes(tag.tag_id)
+                className={`px-3 py-1 rounded-full text-sm transition-colors ${filters.dietary_tags?.includes(tag.tag_id)
                     ? 'bg-green-600 text-white'
                     : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                }`}
+                  }`}
               >
                 {tag.tag_name}
               </button>
