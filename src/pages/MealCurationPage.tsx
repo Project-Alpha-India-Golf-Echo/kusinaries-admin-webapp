@@ -1,12 +1,12 @@
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { Plus, Loader2, Utensils, Archive } from 'lucide-react';
 import { Button } from '../components/ui/button';
 import { MealCard } from '../components/MealCard';
 import { MealFiltersComponent } from '../components/MealFiltersComponent';
 import { useModal } from '../contexts/ModalContext';
 import { 
-  getMealsWithFilters, 
+  getAllMeals, 
   getArchivedMeals, 
   getAllDietaryTags, 
   archiveMeal, 
@@ -14,57 +14,174 @@ import {
 } from '../lib/supabaseQueries';
 import type { Meal, MealFilters, DietaryTag } from '../types';
 
+// Custom hook for debounced search
+const useDebounce = (value: string, delay: number) => {
+  const [debouncedValue, setDebouncedValue] = useState(value);
+
+  useEffect(() => {
+    const handler = setTimeout(() => {
+      setDebouncedValue(value);
+    }, delay);
+
+    return () => {
+      clearTimeout(handler);
+    };
+  }, [value, delay]);
+
+  return debouncedValue;
+};
+
+// Helper function to calculate meal price from ingredients
+const calculateMealPrice = (meal: Meal): number => {
+  if (!meal.meal_ingredients) return 0;
+  
+  return meal.meal_ingredients.reduce((total, mealIngredient) => {
+    // Handle both nested and flat ingredient data structures
+    const ingredient = mealIngredient.ingredient || (mealIngredient as any).ingredients;
+    if (!ingredient) return total;
+
+    // Parse quantity (assuming it's in grams or as a decimal for kilos)
+    const quantity = parseFloat(mealIngredient.quantity) || 0;
+    const pricePerKilo = ingredient.price_per_kilo || 0;
+    
+    // Convert quantity to kilos if it seems to be in grams (> 10)
+    const quantityInKilos = quantity > 10 ? quantity / 1000 : quantity;
+    
+    return total + (quantityInKilos * pricePerKilo);
+  }, 0);
+};
+
 export const MealCurationPage = () => {
-  const [meals, setMeals] = useState<Meal[]>([]);
+  const [allMeals, setAllMeals] = useState<Meal[]>([]);
+  const [allArchivedMeals, setAllArchivedMeals] = useState<Meal[]>([]);
   const [dietaryTags, setDietaryTags] = useState<DietaryTag[]>([]);
   const [filters, setFilters] = useState<MealFilters>({});
   const [isLoading, setIsLoading] = useState(true);
   const [showArchived, setShowArchived] = useState(false);
   const [error, setError] = useState('');
 
+  // Debounce the search term to avoid excessive filtering
+  const debouncedSearch = useDebounce(filters.search || '', 300);
+
   // Get modal functions from context
   const { openCreateMealModal, openEditMealModal } = useModal();
 
+  // Filter meals locally for better performance
+  const filteredMeals = useMemo(() => {
+    const sourceData = showArchived ? allArchivedMeals : allMeals;
+    let filtered = [...sourceData];
+
+    // Apply search filter
+    if (debouncedSearch) {
+      const searchLower = debouncedSearch.toLowerCase();
+      filtered = filtered.filter(meal =>
+        meal.name.toLowerCase().includes(searchLower) ||
+        (meal.recipe && meal.recipe.toLowerCase().includes(searchLower))
+      );
+    }
+
+    // Apply category filter
+    if (filters.category) {
+      filtered = filtered.filter(meal => meal.category === filters.category);
+    }
+
+    // Apply dietary tags filter
+    if (filters.dietary_tags && filters.dietary_tags.length > 0) {
+      filtered = filtered.filter(meal => {
+        // Check both possible property names due to Supabase join structure
+        const dietaryTags = (meal as any).meal_dietary_tags || meal.dietary_tags || [];
+        if (!dietaryTags || dietaryTags.length === 0) return false;
+        
+        // Extract tag IDs from the dietary tags structure
+        const mealTagIds = dietaryTags.map((tagData: any) => {
+          // Handle different possible structures from Supabase joins
+          if (typeof tagData === 'number') return tagData;
+          if (tagData && typeof tagData === 'object') {
+            // Direct tag_id from meal_dietary_tags
+            if (tagData.tag_id) return tagData.tag_id;
+            // Nested dietary_tags object
+            if (tagData.dietary_tags && tagData.dietary_tags.tag_id) {
+              return tagData.dietary_tags.tag_id;
+            }
+          }
+          return null;
+        }).filter((id: any) => id !== null);
+        
+        return filters.dietary_tags!.some(tagId => mealTagIds.includes(tagId));
+      });
+    }
+
+    // Apply sorting
+    const sortBy = filters.sort_by || 'created_at';
+    const sortOrder = filters.sort_order || 'desc';
+
+    filtered.sort((a, b) => {
+      let aValue: any, bValue: any;
+
+      switch (sortBy) {
+        case 'name':
+          aValue = a.name.toLowerCase();
+          bValue = b.name.toLowerCase();
+          break;
+        case 'estimated_price':
+          // Calculate price for sorting if not available
+          aValue = a.estimated_price || calculateMealPrice(a);
+          bValue = b.estimated_price || calculateMealPrice(b);
+          break;
+        case 'created_at':
+        default:
+          aValue = new Date(a.created_at).getTime();
+          bValue = new Date(b.created_at).getTime();
+          break;
+      }
+
+      if (aValue < bValue) return sortOrder === 'asc' ? -1 : 1;
+      if (aValue > bValue) return sortOrder === 'asc' ? 1 : -1;
+      return 0;
+    });
+
+    return filtered;
+  }, [allMeals, allArchivedMeals, debouncedSearch, filters, showArchived]);
+
   // Load initial data
   useEffect(() => {
-    loadDietaryTags();
+    loadInitialData();
   }, []);
-
-  // Load meals when filters or showArchived changes
-  useEffect(() => {
-    loadMeals();
-  }, [filters, showArchived]);
 
   // Listen for meal saved events
   useEffect(() => {
     const handleMealSaved = () => {
-      loadMeals();
+      loadInitialData();
     };
 
     window.addEventListener('mealSaved', handleMealSaved);
     return () => window.removeEventListener('mealSaved', handleMealSaved);
   }, []);
 
-  const loadDietaryTags = async () => {
-    const result = await getAllDietaryTags();
-    if (result.success && result.data) {
-      setDietaryTags(result.data);
-    }
-  };
-
-  const loadMeals = async () => {
+  const loadInitialData = async () => {
     setIsLoading(true);
     setError('');
 
     try {
-      const result = showArchived 
-        ? await getArchivedMeals()
-        : await getMealsWithFilters(filters);
+      // Load all data in parallel
+      const [mealsResult, archivedResult, tagsResult] = await Promise.all([
+        getAllMeals(),
+        getArchivedMeals(),
+        getAllDietaryTags()
+      ]);
 
-      if (result.success && result.data) {
-        setMeals(result.data);
+      if (mealsResult.success && mealsResult.data) {
+        setAllMeals(mealsResult.data);
       } else {
-        setError(result.error || 'Failed to load meals');
+        setError(mealsResult.error || 'Failed to load meals');
+      }
+
+      if (archivedResult.success && archivedResult.data) {
+        setAllArchivedMeals(archivedResult.data);
+      }
+
+      if (tagsResult.success && tagsResult.data) {
+        setDietaryTags(tagsResult.data);
       }
     } catch (err) {
       setError('An unexpected error occurred');
@@ -80,7 +197,7 @@ export const MealCurationPage = () => {
   const handleArchiveMeal = async (mealId: number) => {
     const result = await archiveMeal(mealId);
     if (result.success) {
-      loadMeals();
+      loadInitialData();
     } else {
       setError(result.error || 'Failed to archive meal');
     }
@@ -89,7 +206,7 @@ export const MealCurationPage = () => {
   const handleRestoreMeal = async (mealId: number) => {
     const result = await restoreMeal(mealId);
     if (result.success) {
-      loadMeals();
+      loadInitialData();
     } else {
       setError(result.error || 'Failed to restore meal');
     }
@@ -155,7 +272,7 @@ export const MealCurationPage = () => {
               <p className="text-gray-600">Please wait while we fetch your meal library.</p>
             </div>
           </div>
-        ) : meals.length === 0 ? (
+        ) : filteredMeals.length === 0 ? (
           <div className="bg-white rounded-xl border border-gray-200 shadow-sm">
             <div className="p-12 text-center">
               <div className="w-16 h-16 mx-auto text-gray-400 mb-6">
@@ -189,7 +306,7 @@ export const MealCurationPage = () => {
           </div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-            {meals.map((meal) => (
+            {filteredMeals.map((meal: Meal) => (
               <MealCard
                 key={meal.meal_id}
                 meal={meal}
@@ -203,30 +320,30 @@ export const MealCurationPage = () => {
         )}
 
         {/* Meal Stats Footer */}
-        {meals.length > 0 && (
+        {filteredMeals.length > 0 && (
           <div className="mt-8 bg-gradient-to-r from-green-50 to-green-100 rounded-xl p-6 border border-green-200">
             <div className="grid grid-cols-1 md:grid-cols-4 gap-4 text-center">
               <div>
-                <div className="text-2xl font-bold text-green-800">{meals.length}</div>
+                <div className="text-2xl font-bold text-green-800">{filteredMeals.length}</div>
                 <div className="text-sm text-green-600">
                   {showArchived ? 'Archived Meals' : 'Total Meals'}
                 </div>
               </div>
               <div>
                 <div className="text-2xl font-bold text-green-800">
-                  {meals.filter(m => m.category === 'Best for Breakfast').length}
+                  {filteredMeals.filter((m: Meal) => m.category === 'Best for Breakfast').length}
                 </div>
                 <div className="text-sm text-green-600">Breakfast Meals</div>
               </div>
               <div>
                 <div className="text-2xl font-bold text-green-800">
-                  {meals.filter(m => m.category === 'Best for Lunch').length}
+                  {filteredMeals.filter((m: Meal) => m.category === 'Best for Lunch').length}
                 </div>
                 <div className="text-sm text-green-600">Lunch Meals</div>
               </div>
               <div>
                 <div className="text-2xl font-bold text-green-800">
-                  {meals.filter(m => m.category === 'Best for Dinner').length}
+                  {filteredMeals.filter((m: Meal) => m.category === 'Best for Dinner').length}
                 </div>
                 <div className="text-sm text-green-600">Dinner Meals</div>
               </div>

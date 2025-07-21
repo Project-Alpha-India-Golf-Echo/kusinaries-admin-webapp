@@ -1,21 +1,25 @@
 import { NavLink, useNavigate } from 'react-router-dom'
 import { Button } from './ui/button'
 import { useAuth } from '../contexts/AuthContext'
-import { 
-  LayoutDashboard, 
-  Users, 
-  Settings, 
-  ChefHat, 
+import {
+  LayoutDashboard,
+  Users,
+  Settings,
+  ChefHat,
   LogOut,
   X,
   ChevronLeft,
-  ChevronRight
+  ChevronRight,
+  Apple,
+  Salad
 } from 'lucide-react'
 
 const menuItems = [
   { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard, path: '/' },
-  { id: 'users', label: 'Users', icon: Users, path: '/users' },
-  { id: 'mealcuration', label: 'Meal Curation', icon: ChefHat, path: '/mealcuration' },
+  { id: 'users', label: 'User Management', icon: Users, path: '/users' },
+  { id: 'mealcuration', label: 'Meal Curation', icon: Salad, path: '/mealcuration' },
+  { id: 'ingredients', label: 'Ingredients', icon: Apple, path: '/ingredients' },
+  { id: 'grants', label: 'Grants', icon: ChefHat, path: '/grants' },
   { id: 'settings', label: 'Settings', icon: Settings, path: '/settings' },
 ]
 
@@ -60,7 +64,7 @@ export const Sidebar = ({ isOpen, onToggle, isCollapsed, onCollapsedChange }: Si
         <div className="flex items-center justify-between h-16 px-4 border-b">
           {!isCollapsed && (
             <h2 className="text-lg font-semibold text-black">
-              Project Alpha
+              Kusinaries
             </h2>
           )}
           <div className="flex items-center space-x-2">
@@ -104,8 +108,8 @@ export const Sidebar = ({ isOpen, onToggle, isCollapsed, onCollapsedChange }: Si
                 }}
                 className={({ isActive }) => `
                   flex items-center px-2 py-2 text-sm font-medium rounded-lg transition-all duration-200
-                  ${isActive 
-                    ? 'bg-gray-100 text-black' 
+                  ${isActive
+                    ? 'bg-gray-100 text-black'
                     : 'text-gray-700 hover:bg-gray-50 hover:text-gray-900'
                   }
                   ${isCollapsed ? 'justify-center' : ''}
@@ -140,16 +144,15 @@ export const Sidebar = ({ isOpen, onToggle, isCollapsed, onCollapsedChange }: Si
                   <p className="text-xs text-gray-500 truncate">
                     {user?.email}
                   </p>
-                  <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${
-                    isAdmin ? 'bg-blue-100 text-blue-800' : 'bg-gray-100 text-gray-800'
-                  }`}>
+                  <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${isAdmin ? 'bg-blue-100 text-blue-800' : 'bg-gray-100 text-gray-800'
+                    }`}>
                     {userRole || 'user'}
                   </span>
                 </div>
               </div>
             </div>
           )}
-          
+
           <Button
             variant="outline"
             onClick={handleSignOut}

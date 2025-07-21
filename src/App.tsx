@@ -10,10 +10,12 @@ import { UsersPage } from './pages/UsersPage'
 import { SettingsPage } from './pages/SettingsPage'
 import { CreateUserModal } from './components/CreateUserModal'
 import { CreateEditMealModal } from './components/CreateEditMealModal'
-import { AddIngredientModal } from './components/AddIngredientModal'
+import { CreateEditIngredientModal } from './components/CreateEditIngredientModal'
+import { IngredientsPage } from './pages/IngredientsPage'
 import './index.css'
 import { MealCurationPage } from './pages/MealCurationPage'
 import { Toaster } from "@/components/ui/sonner"
+import { GrantPage } from './pages/GrantPage'
 
 function AppContent() {
   const {
@@ -24,10 +26,11 @@ function AppContent() {
     editingMeal,
     closeCreateEditMealModal,
     onMealSaved,
-    showAddIngredientModal,
+    showCreateEditIngredientModal,
+    editingIngredient,
     initialIngredientCategory,
-    closeAddIngredientModal,
-    onIngredientAdded
+    closeCreateEditIngredientModal,
+    onIngredientSaved
   } = useModal();
 
   return (
@@ -46,6 +49,12 @@ function AppContent() {
           <Route path="users" element={<UsersPage />} />
           <Route path="mealcuration" element={<MealCurationPage />} />
           <Route path="settings" element={<SettingsPage />} />
+          <Route path="ingredients" element={<IngredientsPage />} />
+          <Route path="grants" element={<GrantPage />} />
+          
+          {/* Nested routes for modals */}
+          
+          {/* Catch-all route to redirect to dashboard */}
           <Route path="*" element={<Navigate to="/" replace />} />
         </Route>
       </Routes>
@@ -64,10 +73,11 @@ function AppContent() {
         editingMeal={editingMeal}
       />
 
-      <AddIngredientModal
-        isOpen={showAddIngredientModal}
-        onClose={closeAddIngredientModal}
-        onIngredientAdded={onIngredientAdded}
+      <CreateEditIngredientModal
+        isOpen={showCreateEditIngredientModal}
+        onClose={closeCreateEditIngredientModal}
+        onIngredientSaved={onIngredientSaved}
+        editingIngredient={editingIngredient}
         initialCategory={initialIngredientCategory}
       />
     </Router>

@@ -27,6 +27,7 @@ export interface Ingredient {
   category: IngredientCategory;
   image_url?: string; // URL to image in Supabase storage
   price_per_kilo: number;
+  is_disabled: boolean;
   created_at: string;
 }
 

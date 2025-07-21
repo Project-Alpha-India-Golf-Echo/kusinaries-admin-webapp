@@ -1,5 +1,5 @@
 import { createContext, useContext, useState } from 'react';
-import type { Meal, IngredientCategory } from '../types';
+import type { Meal, Ingredient, IngredientCategory } from '../types';
 
 interface ModalContextType {
   // User modals
@@ -16,11 +16,14 @@ interface ModalContextType {
   closeCreateEditMealModal: () => void;
   onMealSaved: () => void;
   
-  showAddIngredientModal: boolean;
+  // Ingredient modals
+  showCreateEditIngredientModal: boolean;
+  editingIngredient: Ingredient | null;
   initialIngredientCategory: IngredientCategory | undefined;
-  openAddIngredientModal: (category?: IngredientCategory) => void;
-  closeAddIngredientModal: () => void;
-  onIngredientAdded: () => void;
+  openCreateIngredientModal: (category?: IngredientCategory) => void;
+  openEditIngredientModal: (ingredient: Ingredient) => void;
+  closeCreateEditIngredientModal: () => void;
+  onIngredientSaved: () => void;
 }
 
 const ModalContext = createContext<ModalContextType | undefined>(undefined);
@@ -42,7 +45,8 @@ export const ModalProvider = ({ children }: { children: React.ReactNode }) => {
   const [editingMeal, setEditingMeal] = useState<Meal | null>(null);
 
   // Ingredient modal state
-  const [showAddIngredientModal, setShowAddIngredientModal] = useState(false);
+  const [showCreateEditIngredientModal, setShowCreateEditIngredientModal] = useState(false);
+  const [editingIngredient, setEditingIngredient] = useState<Ingredient | null>(null);
   const [initialIngredientCategory, setInitialIngredientCategory] = useState<IngredientCategory | undefined>(undefined);
 
   // User modal functions
@@ -76,19 +80,27 @@ export const ModalProvider = ({ children }: { children: React.ReactNode }) => {
   };
 
   // Ingredient modal functions
-  const openAddIngredientModal = (category?: IngredientCategory) => {
+  const openCreateIngredientModal = (category?: IngredientCategory) => {
+    setEditingIngredient(null);
     setInitialIngredientCategory(category);
-    setShowAddIngredientModal(true);
+    setShowCreateEditIngredientModal(true);
   };
 
-  const closeAddIngredientModal = () => {
-    setShowAddIngredientModal(false);
+  const openEditIngredientModal = (ingredient: Ingredient) => {
+    setEditingIngredient(ingredient);
+    setInitialIngredientCategory(undefined);
+    setShowCreateEditIngredientModal(true);
+  };
+
+  const closeCreateEditIngredientModal = () => {
+    setShowCreateEditIngredientModal(false);
+    setEditingIngredient(null);
     setInitialIngredientCategory(undefined);
   };
 
-  const onIngredientAdded = () => {
+  const onIngredientSaved = () => {
     // Trigger a refresh event that components can listen to
-    window.dispatchEvent(new CustomEvent('ingredientAdded'));
+    window.dispatchEvent(new CustomEvent('ingredientSaved'));
   };
 
   return (
@@ -109,11 +121,13 @@ export const ModalProvider = ({ children }: { children: React.ReactNode }) => {
         onMealSaved,
         
         // Ingredient modals
-        showAddIngredientModal,
+        showCreateEditIngredientModal,
+        editingIngredient,
         initialIngredientCategory,
-        openAddIngredientModal,
-        closeAddIngredientModal,
-        onIngredientAdded,
+        openCreateIngredientModal,
+        openEditIngredientModal,
+        closeCreateEditIngredientModal,
+        onIngredientSaved,
       }}
     >
       {children}

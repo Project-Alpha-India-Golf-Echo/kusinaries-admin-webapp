@@ -197,7 +197,7 @@ export const CreateEditMealModal: React.FC<CreateEditMealModalProps> = ({
       };
 
       const result = editingMeal
-        ? await updateMeal(editingMeal.meal_id, mealData)
+        ? await updateMeal(editingMeal.meal_id.toString(), mealData)
         : await createMeal(mealData);
 
       if (result.success) {

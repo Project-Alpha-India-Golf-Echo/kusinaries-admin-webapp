@@ -1,9 +1,11 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { Search, Filter, SortAsc, SortDesc, X } from 'lucide-react';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
 import type { MealCategory, MealFilters, DietaryTag } from '../types';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue, } from "@/components/ui/select"
+
+
 interface MealFiltersComponentProps {
   filters: MealFilters;
   onFiltersChange: (filters: MealFilters) => void;
@@ -19,8 +21,27 @@ export const MealFiltersComponent: React.FC<MealFiltersComponentProps> = ({
   showArchived,
   onToggleArchived
 }) => {
+  const [localSearch, setLocalSearch] = useState(filters.search || '');
+
+  // Update local search when filters change (e.g., when cleared)
+  useEffect(() => {
+    setLocalSearch(filters.search || '');
+  }, [filters.search]);
+
+  // Debounced search update
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      const trimmedSearch = localSearch.trim();
+      if (trimmedSearch !== (filters.search || '')) {
+        onFiltersChange({ ...filters, search: trimmedSearch || undefined });
+      }
+    }, 300); // 300ms debounce
+
+    return () => clearTimeout(timer);
+  }, [localSearch, filters, onFiltersChange]);
+
   const handleSearchChange = (search: string) => {
-    onFiltersChange({ ...filters, search: search || undefined });
+    setLocalSearch(search);
   };
 
   const handleCategoryChange = (category: string) => {
@@ -97,7 +118,7 @@ export const MealFiltersComponent: React.FC<MealFiltersComponentProps> = ({
             <Input
               type="text"
               placeholder="Search by meal name..."
-              value={filters.search || ''}
+              value={localSearch}
               onChange={(e) => handleSearchChange(e.target.value)}
               className="pl-10"
             />

@@ -1,6 +1,17 @@
 import React from 'react';
 import { Edit, Archive, RotateCcw, Clock, Tag, Utensils } from 'lucide-react';
 import { Button } from './ui/button';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from './ui/alert-dialog';
 import type { Meal } from '../types';
 
 interface MealCardProps {
@@ -60,7 +71,30 @@ export const MealCard: React.FC<MealCardProps> = ({
     }, { go: 0, grow: 0, glow: 0 });
   };
 
+  const calculateEstimatedPrice = () => {
+    if (!meal.meal_ingredients) return 0;
+    
+    return meal.meal_ingredients.reduce((total, mealIngredient) => {
+      // Handle both nested and flat ingredient data structures
+      const ingredient = mealIngredient.ingredient || mealIngredient.ingredients;
+      if (!ingredient) {
+        console.warn('No ingredient data found for price calculation:', mealIngredient);
+        return total;
+      }
+
+      // Parse quantity (assuming it's in grams or as a decimal for kilos)
+      const quantity = parseFloat(mealIngredient.quantity) || 0;
+      const pricePerKilo = ingredient.price_per_kilo || 0;
+      
+      // Convert quantity to kilos if it seems to be in grams (> 10)
+      const quantityInKilos = quantity > 10 ? quantity / 1000 : quantity;
+      
+      return total + (quantityInKilos * pricePerKilo);
+    }, 0);
+  };
+
   const ingredientCounts = getIngredientCounts();
+  const estimatedPrice = meal.estimated_price || calculateEstimatedPrice();
 
   return (
     <div className={`bg-white rounded-xl border shadow-sm hover:shadow-md transition-all duration-200 overflow-hidden ${
@@ -118,7 +152,7 @@ export const MealCard: React.FC<MealCardProps> = ({
         <div className="flex items-center justify-between mb-3 text-sm text-gray-600">
           <div className="flex items-center">
             <span className="text-lg font-medium mr-1">₱</span>
-            {(meal.estimated_price || 0).toFixed(2)}
+            {estimatedPrice.toFixed(2)}
           </div>
           <div className="flex items-center">
             <Clock className="w-4 h-4 mr-1" />
@@ -127,24 +161,31 @@ export const MealCard: React.FC<MealCardProps> = ({
         </div>
 
         {/* Dietary Tags */}
-        {meal.dietary_tags && meal.dietary_tags.length > 0 && (
+        {((meal as any).meal_dietary_tags || meal.dietary_tags) && ((meal as any).meal_dietary_tags || meal.dietary_tags).length > 0 && (
           <div className="mb-3">
             <div className="flex items-center mb-1">
               <Tag className="w-3 h-3 mr-1 text-gray-400" />
               <span className="text-xs text-gray-500">Tags:</span>
             </div>
             <div className="flex flex-wrap gap-1">
-              {meal.dietary_tags.slice(0, 3).map((tag) => (
-                <span
-                  key={tag.tag_id}
-                  className="px-2 py-1 bg-gray-100 text-gray-700 text-xs rounded-full"
-                >
-                  {tag.tag_name}
-                </span>
-              ))}
-              {meal.dietary_tags.length > 3 && (
+              {((meal as any).meal_dietary_tags || meal.dietary_tags).slice(0, 3).map((tagData: any, index: number) => {
+                // Handle different possible structures from Supabase joins
+                const tag = tagData.dietary_tags || tagData;
+                const tagId = tag.tag_id || tag.id || index;
+                const tagName = tag.tag_name || tag.name || 'Unknown';
+                
+                return (
+                  <span
+                    key={tagId}
+                    className="px-2 py-1 bg-gray-100 text-gray-700 text-xs rounded-full"
+                  >
+                    {tagName}
+                  </span>
+                );
+              })}
+              {((meal as any).meal_dietary_tags || meal.dietary_tags).length > 3 && (
                 <span className="px-2 py-1 bg-gray-100 text-gray-700 text-xs rounded-full">
-                  +{meal.dietary_tags.length - 3} more
+                  +{((meal as any).meal_dietary_tags || meal.dietary_tags).length - 3} more
                 </span>
               )}
             </div>
@@ -172,26 +213,66 @@ export const MealCard: React.FC<MealCardProps> = ({
           
           {isArchived ? (
             onRestore && (
-              <Button
-                size="sm"
-                variant="outline"
-                onClick={() => onRestore(meal.meal_id)}
-                className="flex-1 hover:bg-green-50 hover:border-green-300 hover:text-green-700"
-              >
-                <RotateCcw className="w-3 h-3 mr-1" />
-                Restore
-              </Button>
+              <AlertDialog>
+                <AlertDialogTrigger asChild>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="flex-1 hover:bg-green-50 hover:border-green-300 hover:text-green-700"
+                  >
+                    <RotateCcw className="w-3 h-3 mr-1" />
+                    Restore
+                  </Button>
+                </AlertDialogTrigger>
+                <AlertDialogContent>
+                  <AlertDialogHeader>
+                    <AlertDialogTitle>Restore Meal</AlertDialogTitle>
+                    <AlertDialogDescription>
+                      Are you sure you want to restore "{meal.name}"? The meal will be moved back to the active meals section.
+                    </AlertDialogDescription>
+                  </AlertDialogHeader>
+                  <AlertDialogFooter>
+                    <AlertDialogCancel>Cancel</AlertDialogCancel>
+                    <AlertDialogAction 
+                      onClick={() => onRestore(meal.meal_id)}
+                      className="bg-green-600 hover:bg-green-700"
+                    >
+                      Restore Meal
+                    </AlertDialogAction>
+                  </AlertDialogFooter>
+                </AlertDialogContent>
+              </AlertDialog>
             )
           ) : (
-            <Button
-              size="sm"
-              variant="outline"
-              onClick={() => onArchive(meal.meal_id)}
-              className="flex-1 hover:bg-red-50 hover:border-red-300 hover:text-red-700"
-            >
-              <Archive className="w-3 h-3 mr-1" />
-              Archive
-            </Button>
+            <AlertDialog>
+              <AlertDialogTrigger asChild>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="flex-1 hover:bg-red-50 hover:border-red-300 hover:text-red-700"
+                >
+                  <Archive className="w-3 h-3 mr-1" />
+                  Archive
+                </Button>
+              </AlertDialogTrigger>
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>Archive Meal</AlertDialogTitle>
+                  <AlertDialogDescription>
+                    Are you sure you want to archive "{meal.name}"? The meal will be moved to the archived section and can be restored later.
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel>Cancel</AlertDialogCancel>
+                  <AlertDialogAction 
+                    onClick={() => onArchive(meal.meal_id)}
+                    className="bg-red-600 hover:bg-red-700"
+                  >
+                    Archive Meal
+                  </AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
           )}
         </div>
       </div>

@@ -28,10 +28,11 @@ EXCEPTION
     WHEN duplicate_object THEN null;
 END $$;
 
--- Update ingredients table: Add binary image fields and remove URL field
+-- Update ingredients table: Add binary image fields and is_disabled column, remove URL field
 ALTER TABLE ingredients 
 ADD COLUMN IF NOT EXISTS image_data BYTEA,
-ADD COLUMN IF NOT EXISTS image_mime_type VARCHAR(100);
+ADD COLUMN IF NOT EXISTS image_mime_type VARCHAR(100),
+ADD COLUMN IF NOT EXISTS is_disabled BOOLEAN DEFAULT FALSE;
 
 -- Remove the old image_url column if it exists
 DO $$ 

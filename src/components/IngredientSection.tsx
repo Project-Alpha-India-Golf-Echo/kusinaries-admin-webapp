@@ -61,7 +61,7 @@ export const IngredientSection: React.FC<IngredientSectionProps> = ({
   const [isLoading, setIsLoading] = useState(true);
 
   // Get modal functions from context
-  const { openAddIngredientModal } = useModal();
+  const { openCreateIngredientModal } = useModal();
 
   const categoryInfo = getCategoryInfo(category);
 
@@ -111,7 +111,7 @@ export const IngredientSection: React.FC<IngredientSectionProps> = ({
           <p className="text-sm text-gray-600">{categoryInfo.description}</p>
         </div>
         <Button
-          onClick={() => openAddIngredientModal(category)}
+          onClick={() => openCreateIngredientModal(category)}
           className={`${categoryInfo.buttonColor} text-white`}
           size="sm"
         >
@@ -142,7 +142,7 @@ export const IngredientSection: React.FC<IngredientSectionProps> = ({
           {searchTerm ? 'No ingredients found matching your search.' : 'No ingredients available.'}
           <br />
           <Button
-            onClick={() => openAddIngredientModal(category)}
+            onClick={() => openCreateIngredientModal(category)}
             variant="outline"
             size="sm"
             className="mt-2"
