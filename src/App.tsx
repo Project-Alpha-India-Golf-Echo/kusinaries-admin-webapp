@@ -8,6 +8,7 @@ import { LoginForm } from './components/LoginForm'
 import { DashboardPage } from './pages/DashboardPage'
 import { UsersPage } from './pages/UsersPage'
 import { SettingsPage } from './pages/SettingsPage'
+import { HistoryPage } from './pages/HistoryPage'
 import { CreateUserModal } from './components/CreateUserModal'
 import { CreateEditMealModal } from './components/CreateEditMealModal'
 import { CreateEditIngredientModal } from './components/CreateEditIngredientModal'
@@ -50,6 +51,7 @@ function AppContent() {
           <Route path="mealcuration" element={<MealCurationPage />} />
           <Route path="settings" element={<SettingsPage />} />
           <Route path="ingredients" element={<IngredientsPage />} />
+          <Route path="history" element={<HistoryPage />} />
           <Route path="grants" element={<GrantPage />} />
           
           {/* Nested routes for modals */}

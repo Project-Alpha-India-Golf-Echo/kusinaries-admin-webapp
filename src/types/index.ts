@@ -78,3 +78,19 @@ export interface MealFilters {
   sort_by?: 'name' | 'created_at' | 'estimated_price';
   sort_order?: 'asc' | 'desc';
 }
+
+// Audit Trail Types
+export type AuditAction = 'created' | 'updated' | 'archived' | 'restored';
+export type EntityType = 'meal' | 'ingredient';
+
+export interface ActivityLog {
+  log_id: number;
+  entity_type: EntityType;
+  entity_id: number;
+  entity_name: string;
+  action: AuditAction;
+  changed_by: string;
+  changed_at: string;
+  changes?: Record<string, any>;
+  notes?: string;
+}

@@ -359,7 +359,7 @@ export const createIngredient = async (ingredientData: {
   price_per_kilo: number;
 }): Promise<{ success: boolean; error?: string }> => {
   try {
-    const { error } = await supabase
+    const { data, error } = await supabase
       .from('ingredients')
       .insert([
         {
@@ -369,11 +369,24 @@ export const createIngredient = async (ingredientData: {
           price_per_kilo: ingredientData.price_per_kilo,
           created_at: new Date().toISOString()
         }
-      ]);
+      ])
+      .select('ingredient_id, name')
+      .single();
 
     if (error) {
       console.error('Error creating ingredient:', error);
       return { success: false, error: error.message };
+    }
+
+    // Log the activity
+    if (data) {
+      await createActivityLogEntry(
+        'ingredient',
+        data.ingredient_id,
+        data.name,
+        'created',
+        { category: ingredientData.category, price_per_kilo: ingredientData.price_per_kilo }
+      );
     }
 
     return { success: true };
@@ -391,14 +404,27 @@ export const updateIngredient = async (id: number, ingredientData: {
   price_per_kilo?: number;
 }): Promise<{ success: boolean; error?: string }> => {
   try {
-    const { error } = await supabase
+    const { data, error } = await supabase
       .from('ingredients')
       .update(ingredientData)
-      .eq('ingredient_id', id);
+      .eq('ingredient_id', id)
+      .select('ingredient_id, name')
+      .single();
 
     if (error) {
       console.error('Error updating ingredient:', error);
       return { success: false, error: error.message };
+    }
+
+    // Log the activity
+    if (data) {
+      await createActivityLogEntry(
+        'ingredient',
+        data.ingredient_id,
+        data.name,
+        'updated',
+        ingredientData
+      );
     }
 
     return { success: true };
@@ -411,14 +437,26 @@ export const updateIngredient = async (id: number, ingredientData: {
 // Archive an ingredient (soft delete)
 export const archiveIngredient = async (id: number): Promise<{ success: boolean; error?: string }> => {
   try {
-    const { error } = await supabase
+    const { data, error } = await supabase
       .from('ingredients')
       .update({ is_disabled: true })
-      .eq('ingredient_id', id);
+      .eq('ingredient_id', id)
+      .select('ingredient_id, name')
+      .single();
 
     if (error) {
       console.error('Error archiving ingredient:', error);
       return { success: false, error: error.message };
+    }
+
+    // Log the activity
+    if (data) {
+      await createActivityLogEntry(
+        'ingredient',
+        data.ingredient_id,
+        data.name,
+        'archived'
+      );
     }
 
     return { success: true };
@@ -431,14 +469,26 @@ export const archiveIngredient = async (id: number): Promise<{ success: boolean;
 // Restore an archived ingredient
 export const restoreIngredient = async (id: number): Promise<{ success: boolean; error?: string }> => {
   try {
-    const { error } = await supabase
+    const { data, error } = await supabase
       .from('ingredients')
       .update({ is_disabled: false })
-      .eq('ingredient_id', id);
+      .eq('ingredient_id', id)
+      .select('ingredient_id, name')
+      .single();
 
     if (error) {
       console.error('Error restoring ingredient:', error);
       return { success: false, error: error.message };
+    }
+
+    // Log the activity
+    if (data) {
+      await createActivityLogEntry(
+        'ingredient',
+        data.ingredient_id,
+        data.name,
+        'restored'
+      );
     }
 
     return { success: true };
@@ -540,7 +590,7 @@ export const getMealById = async (id: string): Promise<{ success: boolean; data?
 // Create a new meal
 export const createMeal = async (mealData: CreateMealData): Promise<{ success: boolean; error?: string }> => {
   try {
-    const { error } = await supabase
+    const { data, error } = await supabase
       .from('meals')
       .insert([
         {
@@ -552,11 +602,24 @@ export const createMeal = async (mealData: CreateMealData): Promise<{ success: b
           created_at: new Date().toISOString(),
           updated_at: new Date().toISOString()
         }
-      ]);
+      ])
+      .select('meal_id, name')
+      .single();
 
     if (error) {
       console.error('Error creating meal:', error);
       return { success: false, error: error.message };
+    }
+
+    // Log the activity
+    if (data) {
+      await createActivityLogEntry(
+        'meal',
+        data.meal_id,
+        data.name,
+        'created',
+        { category: mealData.category, recipe: mealData.recipe }
+      );
     }
 
     return { success: true };
@@ -569,7 +632,7 @@ export const createMeal = async (mealData: CreateMealData): Promise<{ success: b
 // Update an existing meal
 export const updateMeal = async (id: string, mealData: Partial<CreateMealData>): Promise<{ success: boolean; error?: string }> => {
   try {
-    const { error } = await supabase
+    const { data, error } = await supabase
       .from('meals')
       .update({
         name: mealData.name,
@@ -578,11 +641,24 @@ export const updateMeal = async (id: string, mealData: Partial<CreateMealData>):
         image_url: mealData.image_url,
         updated_at: new Date().toISOString()
       })
-      .eq('meal_id', id);
+      .eq('meal_id', id)
+      .select('meal_id, name')
+      .single();
 
     if (error) {
       console.error('Error updating meal:', error);
       return { success: false, error: error.message };
+    }
+
+    // Log the activity
+    if (data) {
+      await createActivityLogEntry(
+        'meal',
+        data.meal_id,
+        data.name,
+        'updated',
+        { name: mealData.name, category: mealData.category, recipe: mealData.recipe }
+      );
     }
 
     return { success: true };
@@ -666,14 +742,26 @@ export const getArchivedMeals = async (): Promise<{ success: boolean; data?: Mea
 // Archive a meal (set is_disabled to true)
 export const archiveMeal = async (id: number): Promise<{ success: boolean; error?: string }> => {
   try {
-    const { error } = await supabase
+    const { data, error } = await supabase
       .from('meals')
       .update({ is_disabled: true, updated_at: new Date().toISOString() })
-      .eq('meal_id', id);
+      .eq('meal_id', id)
+      .select('meal_id, name')
+      .single();
 
     if (error) {
       console.error('Error archiving meal:', error);
       return { success: false, error: error.message };
+    }
+
+    // Log the activity
+    if (data) {
+      await createActivityLogEntry(
+        'meal',
+        data.meal_id,
+        data.name,
+        'archived'
+      );
     }
 
     return { success: true };
@@ -686,20 +774,111 @@ export const archiveMeal = async (id: number): Promise<{ success: boolean; error
 // Restore a meal (set is_disabled to false)
 export const restoreMeal = async (id: number): Promise<{ success: boolean; error?: string }> => {
   try {
-    const { error } = await supabase
+    const { data, error } = await supabase
       .from('meals')
       .update({ is_disabled: false, updated_at: new Date().toISOString() })
-      .eq('meal_id', id);
+      .eq('meal_id', id)
+      .select('meal_id, name')
+      .single();
 
     if (error) {
       console.error('Error restoring meal:', error);
       return { success: false, error: error.message };
     }
 
+    // Log the activity
+    if (data) {
+      await createActivityLogEntry(
+        'meal',
+        data.meal_id,
+        data.name,
+        'restored'
+      );
+    }
+
     return { success: true };
   } catch (error) {
     console.error('Error in restoreMeal:', error);
     return { success: false, error: 'Failed to restore meal' };
+  }
+};
+
+// ================================
+// AUDIT TRAIL FUNCTIONS
+// ================================
+
+// Create activity log entry
+export const createActivityLogEntry = async (
+  entityType: 'meal' | 'ingredient',
+  entityId: number,
+  entityName: string,
+  action: 'created' | 'updated' | 'archived' | 'restored',
+  changes?: Record<string, any>,
+  notes?: string
+): Promise<{ success: boolean; error?: string }> => {
+  try {
+    const { data: { user }, error: authError } = await supabase.auth.getUser();
+    
+    if (authError || !user) {
+      return { success: false, error: 'User not authenticated' };
+    }
+
+    const { error } = await supabase
+      .from('activity_log')
+      .insert({
+        entity_type: entityType,
+        entity_id: entityId,
+        entity_name: entityName,
+        action: action,
+        changed_by: user.email || 'Unknown User',
+        changes: changes,
+        notes: notes
+      });
+
+    if (error) {
+      console.error('Error creating activity log entry:', error);
+      return { success: false, error: error.message };
+    }
+
+    return { success: true };
+  } catch (error) {
+    console.error('Error in createActivityLogEntry:', error);
+    return { success: false, error: 'Failed to create activity log entry' };
+  }
+};
+
+// Get all activity logs with pagination
+export const getActivityLogs = async (
+  limit: number = 50,
+  offset: number = 0
+): Promise<{ success: boolean; data?: any[]; error?: string; total?: number }> => {
+  try {
+    // Get total count
+    const { count, error: countError } = await supabase
+      .from('activity_log')
+      .select('*', { count: 'exact', head: true });
+
+    if (countError) {
+      console.error('Error getting activity log count:', countError);
+      return { success: false, error: countError.message };
+    }
+
+    // Get logs with pagination
+    const { data, error } = await supabase
+      .from('activity_log')
+      .select('*')
+      .order('changed_at', { ascending: false })
+      .range(offset, offset + limit - 1);
+
+    if (error) {
+      console.error('Error fetching activity logs:', error);
+      return { success: false, error: error.message };
+    }
+
+    return { success: true, data: data || [], total: count || 0 };
+  } catch (error) {
+    console.error('Error in getActivityLogs:', error);
+    return { success: false, error: 'Failed to fetch activity logs' };
   }
 };
 

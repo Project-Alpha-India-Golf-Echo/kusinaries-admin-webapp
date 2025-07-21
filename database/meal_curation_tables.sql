@@ -147,3 +147,32 @@ INSERT INTO ingredients (name, category, price_per_kilo) VALUES
 ('Papaya', 'Glow', 45.00),
 ('Broccoli', 'Glow', 200.00)
 ON CONFLICT (name) DO NOTHING;
+
+-- ================================================================
+-- AUDIT TRAIL SYSTEM
+-- ================================================================
+-- Creates audit trail tables to track all user actions across the system
+
+-- Create audit action enum
+DO $$ BEGIN
+    CREATE TYPE audit_action AS ENUM ('created', 'updated', 'archived', 'restored');
+EXCEPTION
+    WHEN duplicate_object THEN null;
+END $$;
+
+-- Create global activity log table
+CREATE TABLE IF NOT EXISTS activity_log (
+    log_id SERIAL PRIMARY KEY,
+    entity_type VARCHAR(20) NOT NULL, -- 'meal' or 'ingredient'
+    entity_id INT NOT NULL,
+    entity_name VARCHAR(255) NOT NULL,
+    action audit_action NOT NULL,
+    changed_by VARCHAR(255) NOT NULL, -- user identifier
+    changed_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    changes JSONB, -- stores what changed (optional)
+    notes TEXT -- additional notes (optional)
+);
+
+-- Create index for better performance
+CREATE INDEX IF NOT EXISTS idx_activity_log_changed_at ON activity_log(changed_at DESC);
+CREATE INDEX IF NOT EXISTS idx_activity_log_entity ON activity_log(entity_type, entity_id);

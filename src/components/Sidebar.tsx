@@ -11,7 +11,8 @@ import {
   ChevronLeft,
   ChevronRight,
   Apple,
-  Salad
+  Salad,
+  History
 } from 'lucide-react'
 
 const menuItems = [
@@ -19,6 +20,7 @@ const menuItems = [
   { id: 'users', label: 'User Management', icon: Users, path: '/users' },
   { id: 'mealcuration', label: 'Meal Curation', icon: Salad, path: '/mealcuration' },
   { id: 'ingredients', label: 'Ingredients', icon: Apple, path: '/ingredients' },
+  { id: 'history', label: 'Activity History', icon: History, path: '/history' },
   { id: 'grants', label: 'Grants', icon: ChefHat, path: '/grants' },
   { id: 'settings', label: 'Settings', icon: Settings, path: '/settings' },
 ]
