@@ -8,6 +8,7 @@ import { Input } from './ui/input'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/card'
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from './ui/form'
 import { useAuth } from '../contexts/AuthContext'
+import { useDocumentTitle } from '../hooks/useDocumentTitle'
 
 const loginSchema = z.object({
   email: z.string().email('Invalid email address'),
@@ -22,6 +23,8 @@ export const LoginForm = () => {
   const location = useLocation()
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
+
+  useDocumentTitle('Login');
 
   const form = useForm<LoginForm>({
     resolver: zodResolver(loginSchema),
@@ -49,16 +52,24 @@ export const LoginForm = () => {
   }
 
   return (
-    <div className="min-h-screen w-screen bg-gray-50 flex items-center justify-center p-4">
-      <div className="w-full max-w-md">
-        <div className="text-center mb-8">
-          <h2 className="text-3xl font-bold text-gray-900">
-            Project Alpha
+    <div className="min-h-screen w-screen bg-gray-50 flex flex-col">
+      {/* Fixed header with logo and brand */}
+      <div className="fixed top-0 left-0 right-0 bg-gray-50 z-10 py-6 p-4">
+        <div className="flex items-center justify-center space-x-2">
+          <img 
+            src="/kusinaries.svg" 
+            alt="Kusinaries Logo" 
+            className="w-24 h-18"
+          />
+          <h2 className="text-4xl font-bold text-gray-900 font-gochi">
+            kusinaries
           </h2>
-          <p className="mt-2 text-sm text-gray-600">
-            Sign in to your admin account
-          </p>
         </div>
+      </div>
+      
+      {/* Main content area with login form */}
+      <div className="flex-1 flex items-center justify-center p-4 ">
+        <div className="w-full max-w-md">
         
         <Card className="bg-white shadow-xl">
           <CardHeader className="pb-6">
@@ -127,6 +138,7 @@ export const LoginForm = () => {
             </Form>
           </CardContent>
         </Card>
+        </div>
       </div>
     </div>
   )

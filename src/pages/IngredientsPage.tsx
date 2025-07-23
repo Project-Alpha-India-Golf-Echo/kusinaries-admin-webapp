@@ -2,6 +2,7 @@ import { useState, useEffect, useMemo } from 'react';
 import { Card, CardContent} from '../components/ui/card';
 import { Button } from '../components/ui/button';
 import { useModal } from '../contexts/ModalContext';
+import { useDocumentTitle } from '../hooks/useDocumentTitle';
 import { IngredientCard } from '../components/IngredientCard';
 import { IngredientFiltersComponent } from '../components/IngredientFiltersComponent';
 import {
@@ -42,6 +43,8 @@ export const IngredientsPage = () => {
     const [filters, setFilters] = useState<IngredientFilters>({});
     const [showArchived, setShowArchived] = useState(false);
     const { openCreateIngredientModal, openEditIngredientModal } = useModal();
+
+    useDocumentTitle('Ingredients');
 
     // Debounce the search term to avoid excessive API calls
     const debouncedSearch = useDebounce(filters.search || '', 300);

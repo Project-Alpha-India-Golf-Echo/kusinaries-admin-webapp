@@ -4,10 +4,13 @@ import { useState, useEffect } from 'react';
 import { fetchUsersFromProfiles, updateUserRole } from '../lib/supabaseQueries';
 import { useAuth } from '../contexts/AuthContext';
 import { useModal } from '../contexts/ModalContext';
+import { useDocumentTitle } from '../hooks/useDocumentTitle';
 import type { User } from '../types';
 
 export const UsersPage = () => {
   const [users, setUsers] = useState<User[]>([]);
+
+  useDocumentTitle('User Management');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [updatingRole, setUpdatingRole] = useState<string | null>(null);

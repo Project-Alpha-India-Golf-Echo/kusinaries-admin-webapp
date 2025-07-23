@@ -1,8 +1,15 @@
 @import "tailwindcss";
 @import "tw-animate-css";
 @import "./animations.css";
+@import url('https://fonts.googleapis.com/css2?family=Gochi+Hand&display=swap');
+
 
 @custom-variant dark (&:is(.dark *));
+
+@font-face {
+  font-family: 'Gochi Hand';
+  src: url('../src/assets/fonts/GochiHand-Regular.ttf') ;
+}
 
 :root {
   font-family: system-ui, Avenir, Helvetica, Arial, sans-serif;
@@ -73,6 +80,8 @@ h1 {
   line-height: 1.1;
 }
 
+
+
 /* Remove global button styles to prevent conflicts with Tailwind components */
 
 @media (prefers-color-scheme: light) {
@@ -86,6 +95,7 @@ h1 {
 }
 
 @theme inline {
+  --font-gochi: 'Gochi Hand', "sans-serif";
   --radius-sm: calc(var(--radius) - 4px);
   --radius-md: calc(var(--radius) - 2px);
   --radius-lg: var(--radius);

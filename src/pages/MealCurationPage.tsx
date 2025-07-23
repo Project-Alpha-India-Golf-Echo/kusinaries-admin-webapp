@@ -5,6 +5,7 @@ import { Button } from '../components/ui/button';
 import { MealCard } from '../components/MealCard';
 import { MealFiltersComponent } from '../components/MealFiltersComponent';
 import { useModal } from '../contexts/ModalContext';
+import { useDocumentTitle } from '../hooks/useDocumentTitle';
 import { 
   getAllMeals, 
   getArchivedMeals, 
@@ -59,6 +60,8 @@ export const MealCurationPage = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [showArchived, setShowArchived] = useState(false);
   const [error, setError] = useState('');
+
+  useDocumentTitle('Meal Curation');
 
   // Debounce the search term to avoid excessive filtering
   const debouncedSearch = useDebounce(filters.search || '', 300);

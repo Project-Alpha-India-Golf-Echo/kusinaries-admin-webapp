@@ -1,7 +1,7 @@
 import {supabase} from './supabase';
-import type { User } from '../types';
+import type { User, ActivityLog } from '../types';
 
-// Check if current user is admin
+// Check if current user is admi
 export const isCurrentUserAdmin = async (): Promise<boolean> => {
   try {
     const { data: { user }, error: authError } = await supabase.auth.getUser();
@@ -879,6 +879,156 @@ export const getActivityLogs = async (
   } catch (error) {
     console.error('Error in getActivityLogs:', error);
     return { success: false, error: 'Failed to fetch activity logs' };
+  }
+};
+
+// ================================
+// Dashboard Statistics
+// ================================
+
+export const getDashboardStats = async (): Promise<{
+  success: boolean;
+  data?: {
+    totalMeals: number;
+    totalIngredients: number;
+    totalUsers: number;
+    activeMeals: number;
+    activeIngredients: number;
+    archivedMeals: number;
+    archivedIngredients: number;
+    recentActivities: number;
+    mealsByCategory: { category: string; count: number }[];
+    ingredientsByCategory: { category: string; count: number }[];
+  };
+  error?: string;
+}> => {
+  try {
+    // Core data queries (these tables should exist)
+    const [
+      mealsResult,
+      ingredientsResult,
+      usersResult,
+      mealsCategoryResult,
+      ingredientsCategoryResult
+    ] = await Promise.all([
+      // Total meals (active and archived)
+      supabase.from('meals').select('meal_id, is_disabled', { count: 'exact' }),
+      
+      // Total ingredients (active and archived)
+      supabase.from('ingredients').select('ingredient_id, is_disabled', { count: 'exact' }),
+      
+      // Total users
+      supabase.from('profiles').select('id', { count: 'exact' }),
+      
+      // Meals by category
+      supabase
+        .from('meals')
+        .select('category')
+        .eq('is_disabled', false),
+      
+      // Ingredients by category
+      supabase
+        .from('ingredients')
+        .select('category')
+        .eq('is_disabled', false)
+    ]);
+
+    // Check for errors in core queries
+    if (mealsResult.error) throw mealsResult.error;
+    if (ingredientsResult.error) throw ingredientsResult.error;
+    if (usersResult.error) throw usersResult.error;
+    if (mealsCategoryResult.error) throw mealsCategoryResult.error;
+    if (ingredientsCategoryResult.error) throw ingredientsCategoryResult.error;
+
+    // Try to get recent activities, but don't fail if table doesn't exist
+    let recentActivitiesCount = 0;
+    try {
+      const activitiesResult = await supabase
+        .from('activity_log')
+        .select('log_id', { count: 'exact' })
+        .gte('changed_at', new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString());
+      
+      if (!activitiesResult.error) {
+        recentActivitiesCount = activitiesResult.count || 0;
+      }
+    } catch (error) {
+      console.warn('Activity log table not found, skipping recent activities count');
+    }
+
+    // Process meals data
+    const allMeals = mealsResult.data || [];
+    const activeMeals = allMeals.filter(meal => !meal.is_disabled).length;
+    const archivedMeals = allMeals.filter(meal => meal.is_disabled).length;
+
+    // Process ingredients data
+    const allIngredients = ingredientsResult.data || [];
+    const activeIngredients = allIngredients.filter(ingredient => !ingredient.is_disabled).length;
+    const archivedIngredients = allIngredients.filter(ingredient => ingredient.is_disabled).length;
+
+    // Process meals by category
+    const mealsByCategory = mealsCategoryResult.data?.reduce((acc: Record<string, number>, meal: any) => {
+      acc[meal.category] = (acc[meal.category] || 0) + 1;
+      return acc;
+    }, {}) || {};
+
+    // Process ingredients by category
+    const ingredientsByCategory = ingredientsCategoryResult.data?.reduce((acc: Record<string, number>, ingredient: any) => {
+      acc[ingredient.category] = (acc[ingredient.category] || 0) + 1;
+      return acc;
+    }, {}) || {};
+
+    return {
+      success: true,
+      data: {
+        totalMeals: mealsResult.count || 0,
+        totalIngredients: ingredientsResult.count || 0,
+        totalUsers: usersResult.count || 0,
+        activeMeals,
+        activeIngredients,
+        archivedMeals,
+        archivedIngredients,
+        recentActivities: recentActivitiesCount,
+        mealsByCategory: Object.entries(mealsByCategory).map(([category, count]) => ({
+          category,
+          count: count as number
+        })),
+        ingredientsByCategory: Object.entries(ingredientsByCategory).map(([category, count]) => ({
+          category,
+          count: count as number
+        }))
+      }
+    };
+  } catch (error) {
+    console.error('Error fetching dashboard stats:', error);
+    return { success: false, error: 'Failed to fetch dashboard statistics' };
+  }
+};
+
+export const getRecentActivities = async (limit: number = 5): Promise<{
+  success: boolean;
+  data?: ActivityLog[];
+  error?: string;
+}> => {
+  try {
+    const { data, error } = await supabase
+      .from('activity_log')
+      .select('*')
+      .order('changed_at', { ascending: false })
+      .limit(limit);
+
+    if (error) {
+      // If the table doesn't exist, return empty data instead of throwing error
+      if (error.code === '42P01') {
+        console.warn('Activity log table not found, returning empty activities');
+        return { success: true, data: [] };
+      }
+      throw error;
+    }
+
+    return { success: true, data: data || [] };
+  } catch (error) {
+    console.error('Error fetching recent activities:', error);
+    return { success: false, error: 'Failed to fetch recent activities' };
   }
 };
 

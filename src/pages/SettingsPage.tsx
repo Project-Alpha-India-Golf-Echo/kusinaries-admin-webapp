@@ -5,9 +5,11 @@ import {
   Save
 } from 'lucide-react'
 import { useAuth } from '../contexts/AuthContext'
+import { useDocumentTitle } from '../hooks/useDocumentTitle'
 import { updateUserProfile, changeUserPassword } from '../lib/supabaseQueries'
 
 export const SettingsPage = () => {
+  useDocumentTitle('Settings');
   const { user, refreshUserRole } = useAuth()
   const [isLoading, setIsLoading] = useState(false)
 
