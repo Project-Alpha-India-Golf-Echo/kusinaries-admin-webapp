@@ -1,14 +1,15 @@
-import { useState } from 'react'
-import { useNavigate, useLocation } from 'react-router-dom'
-import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
+import { useState } from 'react'
+import { useForm } from 'react-hook-form'
+import { useLocation, useNavigate } from 'react-router-dom'
 import { z } from 'zod'
-import { Button } from './ui/button'
-import { Input } from './ui/input'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/card'
-import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from './ui/form'
 import { useAuth } from '../contexts/AuthContext'
 import { useDocumentTitle } from '../hooks/useDocumentTitle'
+import { shortVersion } from '../lib/version'
+import { Button } from './ui/button'
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/card'
+import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from './ui/form'
+import { Input } from './ui/input'
 
 const loginSchema = z.object({
   email: z.string().email('Invalid email address'),
@@ -18,7 +19,7 @@ const loginSchema = z.object({
 type LoginForm = z.infer<typeof loginSchema>
 
 export const LoginForm = () => {
-  const { signIn } = useAuth()
+  const { signIn, allowedRoles } = useAuth()
   const navigate = useNavigate()
   const location = useLocation()
   const [error, setError] = useState<string | null>(null)
@@ -75,7 +76,7 @@ export const LoginForm = () => {
           <CardHeader className="pb-6">
             <CardTitle className="text-center text-xl font-semibold">Sign In</CardTitle>
             <CardDescription className="text-center">
-              Enter your credentials to access the dashboard
+              Enter your credentials to access the dashboard. Allowed roles: {allowedRoles.join(', ')}
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -116,7 +117,7 @@ export const LoginForm = () => {
                   )}
                 />
                 {error && (
-                  <div className="text-sm text-gray-800 bg-gray-100 border border-gray-300 p-3 rounded-md">
+                  <div className="text-sm text-red-700 bg-red-50 border border-red-300 p-3 rounded-md">
                     {error}
                   </div>
                 )}
@@ -140,6 +141,9 @@ export const LoginForm = () => {
         </Card>
         </div>
       </div>
+        <div className="fixed bottom-2 left-0 right-0 text-center text-xs text-gray-400 select-none">
+          v{shortVersion()}
+        </div>
     </div>
   )
 }
