@@ -1,15 +1,15 @@
 {
   "name": "project-alpha-admin",
   "private": true,
-  "version": "0.0.0",
+  "version": "0.0.1",
   "type": "module",
   "scripts": {
     "dev": "vite",
-  "build:version": "node scripts/generate-build-info.mjs",
-  "build": "npm run build:version && tsc -b && vite build && cp dist/index.html dist/404.html",
-  "version:patch": "npm version patch -m 'chore: release %s'",
-  "version:minor": "npm version minor -m 'chore: release %s'",
-  "version:major": "npm version major -m 'chore: release %s'",
+    "build:version": "node scripts/generate-build-info.mjs",
+    "build": "npm run build:version && tsc -b && vite build && cp dist/index.html dist/404.html",
+    "version:patch": "npm version patch -m 'chore: release %s'",
+    "version:minor": "npm version minor -m 'chore: release %s'",
+    "version:major": "npm version major -m 'chore: release %s'",
     "lint": "eslint .",
     "preview": "vite preview"
   },
