@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from 'react';
-import { Card, CardContent} from '../components/ui/card';
+import { Card, CardContent } from '../components/ui/card';
 import { Button } from '../components/ui/button';
 import { useModal } from '../contexts/ModalContext';
 import { useDocumentTitle } from '../hooks/useDocumentTitle';
@@ -55,7 +55,7 @@ export const IngredientsPage = () => {
         setError(null);
 
         try {
-            const result = showArchived 
+            const result = showArchived
                 ? await getArchivedIngredients()
                 : await getAllIngredients();
 
@@ -213,8 +213,8 @@ export const IngredientsPage = () => {
                     <h2 className="text-3xl font-semibold text-gray-900">
                         Ingredients{showArchived && ' - Archived'}</h2>
                     <p className="text-gray-600">
-                        {showArchived 
-                            ? 'Manage archived ingredients' 
+                        {showArchived
+                            ? 'Manage archived ingredients'
                             : 'Manage your ingredients database'
                         }
                         {hasActiveFilters && (
@@ -229,32 +229,40 @@ export const IngredientsPage = () => {
                         onClick={handleCreateIngredient}
                         className="mt-4 sm:mt-0"
                     >
-                    <Plus className="w-4 h-4" />
+                        <Plus className="w-4 h-4" />
                         Add New Ingredient
                     </Button>
                 )}
             </div>
+            <div className="border border-red-300 bg-red-50 rounded-lg p-4 text-sm leading-relaxed space-y-2 mb-2">
+                <p className="font-semibold text-red-900">Ingredient Guidelines</p>
+                <ul className="list-disc pl-5 space-y-1 text-red-800">
+                    <li><strong>Price Disclaimer:</strong> Ingredient prices shown are rough estimates based on sample data and may not reflect current market prices. They are intended for capstone simulation only.</li>
+                    <li>If creating a new ingredient, assign the correct category (Go / Grow / Glow) before using it.</li>
+                    <li>Provide clear quantities with units (e.g., 150g, 1 cup, 2 pieces, 1 tbsp). Avoid vague terms like &quot;some&quot; or &quot;few&quot;.</li>
+                </ul>
+            </div>
 
             {/* Filters */}
-     
-                    <IngredientFiltersComponent
-                        filters={filters}
-                        onFiltersChange={handleFiltersChange}
-                        showArchived={showArchived}
-                        onToggleArchived={handleToggleArchived}
-                    />
-                    {hasActiveFilters && (
-                        <div className="mt-4 pt-4 border-t">
-                            <Button
-                                variant="outline"
-                                onClick={clearFilters}
-                                size="sm"
-                            >
-                                Clear All Filters
-                            </Button>
-                        </div>
-                    )}
-        
+
+            <IngredientFiltersComponent
+                filters={filters}
+                onFiltersChange={handleFiltersChange}
+                showArchived={showArchived}
+                onToggleArchived={handleToggleArchived}
+            />
+            {hasActiveFilters && (
+                <div className="mt-4 pt-4 border-t">
+                    <Button
+                        variant="outline"
+                        onClick={clearFilters}
+                        size="sm"
+                    >
+                        Clear All Filters
+                    </Button>
+                </div>
+            )}
+
 
             {/* Ingredients Grid */}
             {filteredIngredients.length === 0 ? (

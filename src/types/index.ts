@@ -12,10 +12,12 @@ export interface User {
     [key: string]: any;
   };
   app_metadata?: {
-    role?: string;
+  role?: UserRole;
     [key: string]: any;
   };
 }
+
+export type UserRole = 'admin' | 'user' | 'family_head' | 'cook';
 
 // Meal Curation System Types
 export type MealCategory = 'Best for Breakfast' | 'Best for Lunch' | 'Best for Dinner' | 'Best for Snacks';
