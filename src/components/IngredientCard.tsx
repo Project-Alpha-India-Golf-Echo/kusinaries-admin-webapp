@@ -1,18 +1,18 @@
+import { Archive, Edit, Package, RotateCcw } from 'lucide-react';
 import React from 'react';
-import { Edit, Package, Archive, RotateCcw } from 'lucide-react';
-import { Button } from './ui/button';
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-  AlertDialogTrigger,
-} from './ui/alert-dialog';
 import type { Ingredient } from '../types';
+import {
+    AlertDialog,
+    AlertDialogAction,
+    AlertDialogCancel,
+    AlertDialogContent,
+    AlertDialogDescription,
+    AlertDialogFooter,
+    AlertDialogHeader,
+    AlertDialogTitle,
+    AlertDialogTrigger,
+} from './ui/alert-dialog';
+import { Button } from './ui/button';
 
 interface IngredientCardProps {
   ingredient: Ingredient;
@@ -48,9 +48,9 @@ export const IngredientCard: React.FC<IngredientCardProps> = ({
     }`}>
       {/* Image */}
       <div className="h-32 bg-gray-100 relative overflow-hidden rounded-t-xl">
-        {ingredient.image_url ? (
+        {(ingredient as any).signed_image_url || ingredient.image_url ? (
           <img
-            src={ingredient.image_url}
+            src={(ingredient as any).signed_image_url || ingredient.image_url}
             alt={ingredient.name}
             className="w-full h-full object-cover"
           />

@@ -1,18 +1,18 @@
+import { Archive, Clock, Edit, RotateCcw, Tag, Utensils } from 'lucide-react';
 import React from 'react';
-import { Edit, Archive, RotateCcw, Clock, Tag, Utensils } from 'lucide-react';
-import { Button } from './ui/button';
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-  AlertDialogTrigger,
-} from './ui/alert-dialog';
 import type { Meal } from '../types';
+import {
+    AlertDialog,
+    AlertDialogAction,
+    AlertDialogCancel,
+    AlertDialogContent,
+    AlertDialogDescription,
+    AlertDialogFooter,
+    AlertDialogHeader,
+    AlertDialogTitle,
+    AlertDialogTrigger,
+} from './ui/alert-dialog';
+import { Button } from './ui/button';
 
 interface MealCardProps {
   meal: Meal;
@@ -102,9 +102,9 @@ export const MealCard: React.FC<MealCardProps> = ({
     }`}>
       {/* Image */}
       <div className="h-48 bg-gray-100 relative overflow-hidden">
-        {meal.image_url ? (
+        {(meal as any).signed_image_url || meal.image_url ? (
           <img
-            src={meal.image_url}
+            src={(meal as any).signed_image_url || meal.image_url}
             alt={meal.name}
             className="w-full h-full object-cover"
           />
