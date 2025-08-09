@@ -25,7 +25,8 @@ export interface Ingredient {
   ingredient_id: number;
   name: string;
   category: IngredientCategory;
-  image_url?: string; // URL to image in Supabase storage
+  image_url?: string; // storage object path or legacy URL
+  signed_image_url?: string; // transient signed URL for rendering
   price_per_kilo: number;
   is_disabled: boolean;
   created_at: string;
@@ -50,7 +51,8 @@ export interface Meal {
   name: string;
   category: MealCategory;
   recipe?: string;
-  image_url?: string; // URL to image in Supabase storage
+  image_url?: string; // storage object path or legacy URL
+  signed_image_url?: string; // transient signed URL for rendering
   is_disabled: boolean;
   created_at: string;
   updated_at: string;
@@ -63,7 +65,7 @@ export interface CreateMealData {
   name: string;
   category: MealCategory;
   recipe?: string;
-  image_url?: string; // URL to image in Supabase storage
+  image_url?: string; // storage object path
   ingredients: {
     ingredient_id: number;
     quantity: string;

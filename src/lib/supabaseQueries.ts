@@ -1,5 +1,6 @@
-import {supabase} from './supabase';
-import type { User, ActivityLog } from '../types';
+import type { ActivityLog, User } from '../types';
+import { getSignedUrls, toObjectPath } from './storageUtils';
+import { supabase } from './supabase';
 
 // Check if current user is admi
 export const isCurrentUserAdmin = async (): Promise<boolean> => {
@@ -298,12 +299,12 @@ export const updateUserRole = async (
 // MEAL CURATION SYSTEM QUERIES
 // ============================================
 
-import type { 
-  Meal, 
-  CreateMealData, 
-  Ingredient, 
-  DietaryTag, 
-  IngredientCategory 
+import type {
+  CreateMealData,
+  DietaryTag,
+  Ingredient,
+  IngredientCategory,
+  Meal
 } from '../types';
 
 // ===== INGREDIENT QUERIES =====
@@ -322,7 +323,18 @@ export const getAllIngredients = async (): Promise<{ success: boolean; data?: In
       return { success: false, error: error.message };
     }
 
-    return { success: true, data };
+    // Attach signed URLs for private storage
+    const keys = (data || [])
+      .map((i: any) => i.image_url)
+      .filter(Boolean)
+      .map((u: string) => toObjectPath(u));
+    const signedMap = await getSignedUrls(keys);
+    const enriched = (data || []).map((i: any) => ({
+      ...i,
+      signed_image_url: i.image_url ? signedMap[toObjectPath(i.image_url)] : undefined,
+    }));
+
+    return { success: true, data: enriched };
   } catch (error) {
     console.error('Error in getAllIngredients:', error);
     return { success: false, error: 'Failed to fetch ingredients' };
@@ -344,7 +356,16 @@ export const getIngredientsByCategory = async (category: IngredientCategory): Pr
       return { success: false, error: error.message };
     }
 
-    return { success: true, data };
+    const keys = (data || [])
+      .map((i: any) => i.image_url)
+      .filter(Boolean)
+      .map((u: string) => toObjectPath(u));
+    const signedMap = await getSignedUrls(keys);
+    const enriched = (data || []).map((i: any) => ({
+      ...i,
+      signed_image_url: i.image_url ? signedMap[toObjectPath(i.image_url)] : undefined,
+    }));
+    return { success: true, data: enriched };
   } catch (error) {
     console.error('Error in getIngredientsByCategory:', error);
     return { success: false, error: 'Failed to fetch ingredients by category' };
@@ -544,8 +565,18 @@ export const getAllMeals = async (): Promise<{ success: boolean; data?: Meal[]; 
       console.error('Error fetching meals:', error);
       return { success: false, error: error.message };
     }
+    // Sign image URLs
+    const keys = (data || [])
+      .map((m: any) => m.image_url)
+      .filter(Boolean)
+      .map((u: string) => toObjectPath(u));
+    const signedMap = await getSignedUrls(keys);
+    const enriched = (data || []).map((m: any) => ({
+      ...m,
+      signed_image_url: m.image_url ? signedMap[toObjectPath(m.image_url)] : undefined,
+    }));
 
-    return { success: true, data };
+    return { success: true, data: enriched };
   } catch (error) {
     console.error('Error in getAllMeals:', error);
     return { success: false, error: 'Failed to fetch meals' };
@@ -572,7 +603,7 @@ export const getMealById = async (id: string): Promise<{ success: boolean; data?
           )
         )
       `)
-      .eq('id', id)
+  .eq('meal_id', id)
       .single();
 
     if (error) {
@@ -580,7 +611,11 @@ export const getMealById = async (id: string): Promise<{ success: boolean; data?
       return { success: false, error: error.message };
     }
 
-    return { success: true, data };
+    if (data?.image_url) {
+      const signedMap = await getSignedUrls([toObjectPath(data.image_url)]);
+      (data as any).signed_image_url = signedMap[toObjectPath(data.image_url)];
+    }
+    return { success: true, data: data as any };
   } catch (error) {
     console.error('Error in getMealById:', error);
     return { success: false, error: 'Failed to fetch meal' };
@@ -674,7 +709,7 @@ export const deleteMeal = async (id: string): Promise<{ success: boolean; error?
     const { error } = await supabase
       .from('meals')
       .delete()
-      .eq('id', id);
+  .eq('meal_id', id);
 
     if (error) {
       console.error('Error deleting meal:', error);
@@ -731,8 +766,16 @@ export const getArchivedMeals = async (): Promise<{ success: boolean; data?: Mea
       console.error('Error getting archived meals:', error);
       return { success: false, error: error.message };
     }
-
-    return { success: true, data: data || [] };
+    const keys = (data || [])
+      .map((m: any) => m.image_url)
+      .filter(Boolean)
+      .map((u: string) => toObjectPath(u));
+    const signedMap = await getSignedUrls(keys);
+    const enriched = (data || []).map((m: any) => ({
+      ...m,
+      signed_image_url: m.image_url ? signedMap[toObjectPath(m.image_url)] : undefined,
+    }));
+    return { success: true, data: enriched };
   } catch (error) {
     console.error('Error in getArchivedMeals:', error);
     return { success: false, error: 'Failed to get archived meals' };
