@@ -1,5 +1,5 @@
+import type { AuthError, Session, User } from '@supabase/supabase-js'
 import { createContext, useContext, useEffect, useState } from 'react'
-import type { User, Session, AuthError } from '@supabase/supabase-js'
 import { supabase } from '../lib/supabase'
 
 interface AuthContextType {
@@ -8,9 +8,10 @@ interface AuthContextType {
   loading: boolean
   userRole: string | null
   isAdmin: boolean
-  signIn: (email: string, password: string) => Promise<{ error: AuthError | null }>
+  signIn: (email: string, password: string) => Promise<{ error: { message: string } | AuthError | null }>
   signOut: () => Promise<void>
   refreshUserRole: () => Promise<void>
+  allowedRoles: string[]
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined)
@@ -28,6 +29,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const [session, setSession] = useState<Session | null>(null)
   const [loading, setLoading] = useState(true)
   const [userRole, setUserRole] = useState<string | null>(null)
+  const allowedRoles = ['admin', 'user']
 
   // Fetch user role from profiles table
   const fetchUserRole = async (userId: string) => {
@@ -88,11 +90,25 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   }, [user])
 
   const signIn = async (email: string, password: string) => {
-    const { error } = await supabase.auth.signInWithPassword({
+    const { data, error } = await supabase.auth.signInWithPassword({
       email,
       password,
     })
-    return { error }
+    if (error) return { error }
+
+    // Immediately fetch role after successful auth
+    const authUser = data.user
+    if (authUser) {
+      const role = await fetchUserRole(authUser.id)
+      setUserRole(role)
+      if (!role || !allowedRoles.includes(role)) {
+        // Sign out disallowed roles
+        await supabase.auth.signOut()
+        return { error: { message: `Access restricted.` } }
+      }
+    }
+
+    return { error: null }
   }
 
   const signOut = async () => {
@@ -109,7 +125,8 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         isAdmin: userRole === 'admin',
         signIn,
         signOut,
-        refreshUserRole,
+  refreshUserRole,
+  allowedRoles,
       }}
     >
       {children}

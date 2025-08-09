@@ -5,7 +5,11 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-  "build": "tsc -b && vite build && cp dist/index.html dist/404.html",
+  "build:version": "node scripts/generate-build-info.mjs",
+  "build": "npm run build:version && tsc -b && vite build && cp dist/index.html dist/404.html",
+  "version:patch": "npm version patch -m 'chore: release %s'",
+  "version:minor": "npm version minor -m 'chore: release %s'",
+  "version:major": "npm version major -m 'chore: release %s'",
     "lint": "eslint .",
     "preview": "vite preview"
   },
