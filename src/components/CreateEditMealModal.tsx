@@ -1,19 +1,19 @@
-import { useState, useEffect, useCallback } from 'react';
-import { Upload, X, Loader2, Calculator } from 'lucide-react';
 import {
   FileUpload, FileUploadDropzone, FileUploadItem, FileUploadItemDelete,
   FileUploadItemMetadata, FileUploadItemPreview, FileUploadList, FileUploadTrigger,
 } from "@/components/ui/file-upload";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue, } from "@/components/ui/select";
+import { Textarea } from "@/components/ui/textarea";
+import { Calculator, Loader2, Upload, X } from 'lucide-react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { toast } from "sonner";
+import { updateImageInStorage, uploadImageToStorage, validateImageFileForStorage } from '../lib/storageUtils';
+import { createMeal, getAllDietaryTags, getAllIngredients, updateMeal } from '../lib/supabaseQueries';
+import type { CreateMealData, DietaryTag, Ingredient, Meal, MealCategory } from '../types';
+import { IngredientSection } from './IngredientSection';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
 import { Label } from './ui/label';
-import { IngredientSection } from './IngredientSection';
-import { createMeal, updateMeal, getAllDietaryTags, getAllIngredients } from '../lib/supabaseQueries';
-import { uploadImageToStorage, updateImageInStorage, validateImageFileForStorage } from '../lib/storageUtils';
-import type { Meal, MealCategory, Ingredient, DietaryTag, CreateMealData } from '../types';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue, } from "@/components/ui/select"
-import { Textarea } from "@/components/ui/textarea"
 interface CreateEditMealModalProps {
   isOpen: boolean;
   onClose: () => void;
@@ -40,6 +40,7 @@ export const CreateEditMealModal: React.FC<CreateEditMealModalProps> = ({
   const [allIngredients, setAllIngredients] = useState<Ingredient[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [estimatedPrice, setEstimatedPrice] = useState(0);
+  const [validationErrors, setValidationErrors] = useState<string[]>([]);
 
   // Load dietary tags and ingredients and populate form if editing
   useEffect(() => {
@@ -134,56 +135,67 @@ export const CreateEditMealModal: React.FC<CreateEditMealModalProps> = ({
     calculatePrice();
   }, [selectedIngredients, allIngredients]);
 
+  // Derived ingredient categories present
+  const ingredientCategoryCoverage = useMemo(() => {
+    const categories = new Set<string>();
+    selectedIngredients.forEach(sel => {
+      const ing = allIngredients.find(i => i.ingredient_id === sel.ingredient_id);
+      if (ing) categories.add(ing.category);
+    });
+    return categories;
+  }, [selectedIngredients, allIngredients]);
+
+  const allCategoriesPresent = ['Go', 'Grow', 'Glow'].every(cat => ingredientCategoryCoverage.has(cat));
+
+  // Validate quantities format: number with optional decimal + optional unit
+  const quantityPattern = /^(?=\S)(?=.*\d)(?:\d+\.?\d*|\d*\.\d+)?\s*(g|kg|cup|cups|piece|pieces|tbsp|tsp)?$/i;
+
+  const computeValidationErrors = () => {
+    const errors: string[] = [];
+    if (!formData.name.trim()) errors.push('Meal name is required');
+    if (!formData.category) errors.push('Category is required');
+    if (selectedIngredients.length === 0) errors.push('At least one ingredient is required');
+    if (!allCategoriesPresent) errors.push('Include at least one Go, one Grow, and one Glow ingredient');
+    const missingQty = selectedIngredients.filter(i => !i.quantity.trim());
+    if (missingQty.length) errors.push('Provide quantity for every selected ingredient');
+    const badFormat = selectedIngredients.filter(i => i.quantity && !quantityPattern.test(i.quantity.trim()));
+    if (badFormat.length) errors.push('Use valid quantity format (e.g., 250g, 0.5kg, 1 cup, 2 pieces, 1 tbsp)');
+    return errors;
+  };
+
+  const canSubmit = useMemo(() => computeValidationErrors().length === 0, [formData, selectedIngredients, allCategoriesPresent]);
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    const errors = computeValidationErrors();
+    setValidationErrors(errors);
+    if (errors.length) {
+      // Show first error
+      toast.error(errors[0]);
+      return;
+    }
+
     setIsLoading(true);
-
     try {
-      if (!formData.name.trim()) {
-        toast.error('Meal name is required');
-        return;
-      }
-
-      if (selectedIngredients.length === 0) {
-        toast.error('Please add at least one ingredient');
-        return;
-      }
-
-      // Validate that all selected ingredients have quantities
-      const invalidIngredients = selectedIngredients.filter(item => !item.quantity.trim());
-      if (invalidIngredients.length > 0) {
-        toast.error('Please specify quantities for all selected ingredients');
-        return;
-      }
-
       // Process image if selected
       let imageUrl = undefined;
-
       if (selectedImage) {
-        // Upload new image to storage
         if (editingMeal && editingMeal.image_url) {
-          // Update existing image (upload new, delete old)
           const uploadResult = await updateImageInStorage(selectedImage, editingMeal.image_url, 'meals');
-
           if (!uploadResult.success) {
             toast.error(uploadResult.error || 'Failed to upload image');
             return;
           }
-
           imageUrl = uploadResult.url;
         } else {
-          // Upload new image
           const uploadResult = await uploadImageToStorage(selectedImage, 'meals');
-
           if (!uploadResult.success) {
             toast.error(uploadResult.error || 'Failed to upload image');
             return;
           }
-
           imageUrl = uploadResult.url;
         }
       } else if (editingMeal && editingMeal.image_url) {
-        // Keep existing image if editing and no new image selected
         imageUrl = editingMeal.image_url;
       }
 
@@ -281,6 +293,27 @@ export const CreateEditMealModal: React.FC<CreateEditMealModalProps> = ({
         {/* Content */}
         <div className="flex-1 overflow-y-auto p-6">
           <form onSubmit={handleSubmit} className="space-y-6">
+            {/* Guidelines / Disclaimer */}
+            <div className="border border-amber-300 bg-amber-50 rounded-lg p-4 text-sm leading-relaxed space-y-2">
+              <p className="font-semibold text-amber-900">Meal Curation Guidelines</p>
+              <ul className="list-disc pl-5 space-y-1 text-amber-800">
+                <li>Portions must reflect a single serving (roughly one standard plate).</li>
+                <li>Include ALL three Pinggang Pinoy groups: at least one <strong>Go</strong> (energy), one <strong>Grow</strong> (protein), and one <strong>Glow</strong> (fruits/vegetables).</li>
+                <li>Quantities should approximate realistic consumption and keep total cost reasonable.</li>
+                <li>Recipe / instructions (optional) should be concise and safe (no unsafe cooking steps).</li>
+              </ul>
+              {validationErrors.length > 0 && (
+                <div className="mt-2 text-red-700">
+                  <p className="font-medium">Please fix before submitting:</p>
+                  <ul className="list-disc pl-5 space-y-0.5">
+                    {validationErrors.slice(0, 4).map((err, i) => (
+                      <li key={i}>{err}</li>
+                    ))}
+                    {validationErrors.length > 4 && <li>+ {validationErrors.length - 4} more…</li>}
+                  </ul>
+                </div>
+              )}
+            </div>
             {/* Basic Meal Information */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div className="space-y-4">
@@ -325,7 +358,7 @@ export const CreateEditMealModal: React.FC<CreateEditMealModalProps> = ({
                     onChange={(e) => handleInputChange('recipe', e.target.value)}
                     placeholder="Enter cooking instructions..."
                     rows={4}
-                    className="max-h-32 overflow-y-auto resize-none"
+                    className="h-32 overflow-y-auto resize-none"
                   />
 
                 </div>
@@ -333,7 +366,7 @@ export const CreateEditMealModal: React.FC<CreateEditMealModalProps> = ({
 
               {/* RECIPE MODULE */}
               <div className="space-y-2">
-                <Label htmlFor="picture">Meal Picture (Optional)</Label>
+                <Label htmlFor="picture">Meal Picture </Label>
                 <FileUpload
                   maxFiles={1}
                   maxSize={5 * 1024 * 1024}
@@ -377,7 +410,7 @@ export const CreateEditMealModal: React.FC<CreateEditMealModalProps> = ({
 
             {/* Dietary Tags */}
             <div>
-              <Label>Dietary Tags (Optional)</Label>
+              <Label>Dietary Tags</Label>
               <div className="mt-2 flex flex-wrap gap-2">
                 {dietaryTags.map((tag) => (
                   <button
@@ -397,7 +430,16 @@ export const CreateEditMealModal: React.FC<CreateEditMealModalProps> = ({
 
             {/* Pinggang Pinoy Ingredients */}
             <div>
+              <div className="border border-red-300 bg-red-50 rounded-lg p-4 text-sm leading-relaxed space-y-2 mb-2">
+                <p className="font-semibold text-red-900">Ingredient Guidelines</p>
+                <ul className="list-disc pl-5 space-y-1 text-red-800">
+                  <li><strong>Price Disclaimer:</strong> Ingredient prices shown are rough estimates based on sample data and may not reflect current market prices. They are intended for capstone simulation only.</li>
+                  <li>If creating a new ingredient, assign the correct category (Go / Grow / Glow) before using it.</li>
+                  <li>Provide clear quantities with units (e.g., 150g, 1 cup, 2 pieces, 1 tbsp). Avoid vague terms like &quot;some&quot; or &quot;few&quot;.</li>
+                </ul>
+              </div>
               <div className="flex items-center justify-between mb-4">
+
                 <h3 className="text-lg font-semibold text-gray-900">Pinggang Pinoy Ingredients</h3>
                 {selectedIngredients.length > 0 && (
                   <div className="flex items-center text-sm text-gray-600">
@@ -447,8 +489,8 @@ export const CreateEditMealModal: React.FC<CreateEditMealModalProps> = ({
           </Button>
           <Button
             onClick={handleSubmit}
-            className="flex-1 bg-gradient-to-r from-green-600 to-green-700 hover:from-green-700 hover:to-green-800"
-            disabled={isLoading}
+            className="flex-1 bg-gradient-to-r from-green-600 to-green-700 hover:from-green-700 hover:to-green-800 disabled:opacity-50 disabled:cursor-not-allowed"
+            disabled={isLoading || !canSubmit}
           >
             {isLoading ? (
               <>

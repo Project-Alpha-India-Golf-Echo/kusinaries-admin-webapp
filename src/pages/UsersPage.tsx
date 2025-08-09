@@ -1,14 +1,24 @@
 
 
-import { useState, useEffect } from 'react';
-import { fetchUsersFromProfiles, updateUserRole } from '../lib/supabaseQueries';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { useEffect, useState } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { useModal } from '../contexts/ModalContext';
 import { useDocumentTitle } from '../hooks/useDocumentTitle';
+import { fetchUsers, updateUserRole } from '../lib/supabaseQueries';
 import type { User } from '../types';
 
 export const UsersPage = () => {
   const [users, setUsers] = useState<User[]>([]);
+  const [page, setPage] = useState(1);
+  const [hasMore, setHasMore] = useState(true);
+  const [total, setTotal] = useState(0);
+  const [search, setSearch] = useState('');
+  const [debouncedSearch, setDebouncedSearch] = useState('');
+  const [roleFilter, setRoleFilter] = useState<'all' | 'admin' | 'user' | 'family_head' | 'cook'>('all');
+  const PAGE_SIZE = 25;
 
   useDocumentTitle('User Management');
   const [loading, setLoading] = useState(true);
@@ -22,11 +32,28 @@ export const UsersPage = () => {
   const { openCreateUserModal } = useModal();
 
   useEffect(() => {
-    const loadUsers = async () => {
+    const loadUsers = async (reset = false) => {
       try {
-        setLoading(true);
-        const fetchedUsers = await fetchUsersFromProfiles();
-        setUsers(fetchedUsers);
+        if (reset) {
+          setLoading(true);
+          setPage(1);
+        }
+        const currentPage = reset ? 1 : page;
+        const result = await fetchUsers({
+          page: currentPage,
+          pageSize: PAGE_SIZE,
+          search: debouncedSearch,
+          role: roleFilter,
+          orderBy: 'created_at',
+          orderDir: 'desc'
+        });
+        if (result.success && result.users) {
+          setUsers(prev => reset ? result.users! : [...prev, ...result.users!]);
+          setHasMore(!!result.hasMore);
+          if (typeof result.total === 'number') setTotal(result.total);
+        } else if (!result.success) {
+          setError(result.error || 'Failed to fetch users');
+        }
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Failed to fetch users');
       } finally {
@@ -34,21 +61,44 @@ export const UsersPage = () => {
       }
     };
 
-    loadUsers();
+    loadUsers(true);
 
-    // Listen for user creation events
-    const handleUserCreated = () => {
-      loadUsers();
-    };
-
+    const handleUserCreated = () => loadUsers(true);
     window.addEventListener('userCreated', handleUserCreated);
-    
-    return () => {
-      window.removeEventListener('userCreated', handleUserCreated);
-    };
-  }, []);
+    return () => window.removeEventListener('userCreated', handleUserCreated);
+  }, [debouncedSearch, roleFilter]);
 
-  const handleRoleChange = async (userId: string, newRole: 'admin' | 'user') => {
+  // Debounce search
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedSearch(search), 400);
+    return () => clearTimeout(t);
+  }, [search]);
+
+  // Load more when page changes (except reset handled above)
+  useEffect(() => {
+    if (page === 1) return;
+    fetchUsers({
+      page,
+      pageSize: PAGE_SIZE,
+      search: debouncedSearch,
+      role: roleFilter,
+      orderBy: 'created_at',
+      orderDir: 'desc'
+    }).then(result => {
+      if (result.success && result.users) {
+        setUsers(prev => [...prev, ...result.users!]);
+        setHasMore(!!result.hasMore);
+        if (typeof result.total === 'number') setTotal(result.total);
+      }
+    });
+  }, [page]);
+
+  const loadMore = () => {
+    if (!hasMore || loading) return;
+    setPage(p => p + 1);
+  };
+
+  const handleRoleChange = async (userId: string, newRole: 'admin' | 'user' | 'family_head' | 'cook') => {
     if (!isAdmin || userId === currentUser?.id) return;
     
     setUpdatingRole(userId);
@@ -57,13 +107,7 @@ export const UsersPage = () => {
       
       if (result.success) {
         // Update the local state
-        setUsers(prevUsers => 
-          prevUsers.map(user => 
-            user.id === userId 
-              ? { ...user, app_metadata: { ...user.app_metadata, role: newRole } }
-              : user
-          )
-        );
+  setUsers(prevUsers => prevUsers.map(u => u.id === userId ? { ...u, app_metadata: { ...u.app_metadata, role: newRole } } : u));
         setNotification({
           type: 'success',
           message: `User role updated to ${newRole} successfully!`
@@ -132,6 +176,25 @@ export const UsersPage = () => {
     return 'Inactive';
   };
 
+  const roleLabel = (role?: string) => {
+    switch (role) {
+      case 'admin': return 'Administrator';
+      case 'family_head': return 'Family Head';
+      case 'cook': return 'Cook';
+      case 'user': return 'User';
+      default: return 'User';
+    }
+  };
+
+  const roleColorClasses = (role?: string) => {
+    switch (role) {
+      case 'admin': return 'bg-gradient-to-r from-purple-100 to-purple-200 text-purple-900 border border-purple-300';
+      case 'family_head': return 'bg-gradient-to-r from-orange-100 to-orange-200 text-orange-900 border border-orange-300';
+      case 'cook': return 'bg-gradient-to-r from-pink-100 to-pink-200 text-pink-900 border border-pink-300';
+      default: return 'bg-gradient-to-r from-green-100 to-green-200 text-green-900 border border-green-300';
+    }
+  };
+
   return (
     <div className="min-h-screen animate-in fade-in duration-500">
         {/* Header */}
@@ -145,27 +208,57 @@ export const UsersPage = () => {
             </div>
             <div className="flex items-center space-x-3">
               {isAdmin && (
-                <button
-                  onClick={openCreateUserModal}
-                  className="bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white px-5 py-2.5 rounded-lg font-medium transition-all duration-200 flex items-center space-x-2 shadow-lg hover:shadow-xl transform"
-                >
+                <Button onClick={openCreateUserModal} className="bg-blue-600 hover:bg-blue-700">
                   <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
                   </svg>
-                  <span>Create User</span>
-                </button>
+                  Create User
+                </Button>
               )}
-              {!loading && (
-                <div className="bg-gradient-to-r from-gray-50 to-white px-4 py-2.5 rounded-lg border border-gray-200 shadow-sm flex items-center space-x-2">
-                  <svg className="w-4 h-4 text-gray-500" fill="currentColor" viewBox="0 0 20 20">
-                    <path d="M9 6a3 3 0 11-6 0 3 3 0 016 0zM17 6a3 3 0 11-6 0 3 3 0 016 0zM12.93 17c.046-.327.07-.66.07-1a6.97 6.97 0 00-1.5-4.33A5 5 0 0119 16v1h-6.07zM6 11a5 5 0 015 5v1H1v-1a5 5 0 015-5z" />
-                  </svg>
-                  <span className="text-sm font-semibold text-gray-900">{users.length}</span>
-                  <span className="text-sm text-gray-600">total users</span>
-                </div>
-              )}
+              <div className="hidden md:flex bg-gradient-to-r from-gray-50 to-white px-4 py-2.5 rounded-lg border border-gray-200 shadow-sm items-center space-x-2">
+                <svg className="w-4 h-4 text-gray-500" fill="currentColor" viewBox="0 0 20 20">
+                  <path d="M9 6a3 3 0 11-6 0 3 3 0 016 0zM17 6a3 3 0 11-6 0 3 3 0 016 0zM12.93 17c.046-.327.07-.66.07-1a6.97 6.97 0 00-1.5-4.33A5 5 0 0119 16v1h-6.07zM6 11a5 5 0 015 5v1H1v-1a5 5 0 015-5z" />
+                </svg>
+                <span className="text-sm font-semibold text-gray-900">{total}</span>
+                <span className="text-sm text-gray-600">total users</span>
+              </div>
             </div>
           </div>
+        </div>
+
+        {/* Filters */}
+        <div className="mb-6 grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div className="relative flex flex-col gap-1">
+            <div className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none">
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-4.35-4.35m0 0A7.5 7.5 0 1010.5 18.5a7.5 7.5 0 006.15-3.85z" />
+              </svg>
+            </div>
+            <Input
+              placeholder="Search name or email..."
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className="pl-10"
+            />
+            {debouncedSearch && (
+              <Button type="button" variant="ghost" size="sm" className="self-end h-7 px-2 -mt-1" onClick={() => setSearch('')}>Clear</Button>
+            )}
+          </div>
+          <div className="flex flex-col gap-1">
+            <Select value={roleFilter} onValueChange={(val) => setRoleFilter(val as any)}>
+              <SelectTrigger className="w-full">
+                <SelectValue placeholder="Role" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Roles</SelectItem>
+                <SelectItem value="admin">Administrator</SelectItem>
+                <SelectItem value="family_head">Family Head</SelectItem>
+                <SelectItem value="cook">Cook</SelectItem>
+                <SelectItem value="user">User</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="flex items-center text-xs text-gray-500">Showing {users.length} of {total} users</div>
         </div>
 
         {/* Loading State */}
@@ -293,19 +386,14 @@ export const UsersPage = () => {
                                 {user.app_metadata?.role && (
                                   <div className="flex items-center space-x-3">
                                     {/* Role Badge */}
-                                    <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold shadow-sm ${
-                                      user.app_metadata.role === 'admin' 
-                                        ? 'bg-gradient-to-r from-purple-100 to-purple-200 text-purple-900 border border-purple-300' 
-                                        : 'bg-gradient-to-r from-green-100 to-green-200 text-green-900 border border-green-300'
-                                    }`}>
+                                    <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold shadow-sm ${roleColorClasses(user.app_metadata.role)}`}>
                                       <svg className="w-3 h-3 mr-1.5" fill="currentColor" viewBox="0 0 20 20">
-                                        {user.app_metadata.role === 'admin' ? (
-                                          <path fillRule="evenodd" d="M3 6a3 3 0 013-3h10a1 1 0 01.8 1.6L14.25 8l2.55 3.4A1 1 0 0116 13H6a1 1 0 00-1 1v3a1 1 0 11-2 0V6z" clipRule="evenodd" />
-                                        ) : (
-                                          <path fillRule="evenodd" d="M10 9a3 3 0 100-6 3 3 0 000 6zm-7 9a7 7 0 1114 0H3z" clipRule="evenodd" />
-                                        )}
+                                        {user.app_metadata.role === 'admin' && (<path fillRule="evenodd" d="M3 6a3 3 0 013-3h10a1 1 0 01.8 1.6L14.25 8l2.55 3.4A1 1 0 0116 13H6a1 1 0 00-1 1v3a1 1 0 11-2 0V6z" clipRule="evenodd" />)}
+                                        {user.app_metadata.role === 'user' && (<path fillRule="evenodd" d="M10 9a3 3 0 100-6 3 3 0 000 6zm-7 9a7 7 0 1114 0H3z" clipRule="evenodd" />)}
+                                        {user.app_metadata.role === 'family_head' && (<path fillRule="evenodd" d="M10 2a4 4 0 00-4 4v1H5a2 2 0 00-2 2v1a3 3 0 003 3h8a3 3 0 003-3V9a2 2 0 00-2-2h-1V6a4 4 0 00-4-4zM7 15a3 3 0 016 0v1H7v-1z" clipRule="evenodd" />)}
+                                        {user.app_metadata.role === 'cook' && (<path fillRule="evenodd" d="M6 3a1 1 0 00-1 1v1H4a1 1 0 00-1 1v1h14V6a1 1 0 00-1-1h-1V4a1 1 0 00-1-1H6zm11 6H3l1 9a1 1 0 001 .9h10a1 1 0 001-.9l1-9z" clipRule="evenodd" />)}
                                       </svg>
-                                      {user.app_metadata.role === 'admin' ? 'Administrator' : 'User'}
+                                      {roleLabel(user.app_metadata.role)}
                                     </span>
                                     
                                     {/* Role Change Dropdown for Admins */}
@@ -320,19 +408,17 @@ export const UsersPage = () => {
                                           <div className="flex items-center space-x-2">
                                             <span className="text-xs text-gray-600 font-medium">Change to:</span>
                                             <div className="relative">
-                                              <select
-                                                value={user.app_metadata.role}
-                                                onChange={(e) => handleRoleChange(user.id, e.target.value as 'admin' | 'user')}
-                                                className="text-xs font-medium border border-gray-300 rounded-lg px-3 py-1.5 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200 shadow-sm appearance-none pr-8 hover:shadow-md"
-                                              >
-                                                <option value="user" className="font-medium">👤 User</option>
-                                                <option value="admin" className="font-medium">👑 Admin</option>
-                                              </select>
-                                              <div className="absolute inset-y-0 right-0 flex items-center pr-2 pointer-events-none">
-                                                <svg className="w-3 h-3 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                                                </svg>
-                                              </div>
+                                              <Select value={user.app_metadata.role} onValueChange={(val) => handleRoleChange(user.id, val as any)}>
+                                                <SelectTrigger size="sm" className="text-xs pr-6">
+                                                  <SelectValue />
+                                                </SelectTrigger>
+                                                <SelectContent>
+                                                  <SelectItem value="user">� User</SelectItem>
+                                                  <SelectItem value="family_head">🏠 Family Head</SelectItem>
+                                                  <SelectItem value="cook">👨‍🍳 Cook</SelectItem>
+                                                  <SelectItem value="admin">👑 Admin</SelectItem>
+                                                </SelectContent>
+                                              </Select>
                                             </div>
                                           </div>
                                         )}
@@ -414,6 +500,18 @@ export const UsersPage = () => {
                 </div>
               </div>
             )}
+          </div>
+        )}
+        {/* Load more */}
+        {!loading && hasMore && (
+          <div className="flex justify-center mt-6">
+            <button
+              onClick={loadMore}
+              disabled={loading}
+              className="px-4 py-2 text-sm font-medium rounded-lg bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50"
+            >
+              {loading ? 'Loading...' : 'Load more'}
+            </button>
           </div>
         )}
       </div>

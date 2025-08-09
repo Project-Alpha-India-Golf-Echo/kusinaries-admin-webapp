@@ -1,4 +1,4 @@
-import type { ActivityLog, User } from '../types';
+import type { ActivityLog, User, UserRole } from '../types';
 import { getSignedUrls, toObjectPath } from './storageUtils';
 import { supabase } from './supabase';
 
@@ -61,7 +61,7 @@ export const createUserAccount = async (
   email: string, 
   password: string, 
   fullName: string, 
-  role: 'admin' | 'user' = 'user'
+  role: UserRole = 'user'
 ): Promise<{ success: boolean; error?: string; user?: any }> => {
   try {
     // Check if current user is admin
@@ -268,7 +268,7 @@ export const changeUserPassword = async (
 // Update user role (admin only)
 export const updateUserRole = async (
   userId: string,
-  newRole: 'admin' | 'user'
+  newRole: UserRole
 ): Promise<{ success: boolean; error?: string }> => {
   try {
     // Check if current user is admin
@@ -295,16 +295,80 @@ export const updateUserRole = async (
   }
 };
 
+// Scalable user fetch with pagination, filtering, searching
+export const fetchUsers = async (params: {
+  page?: number;
+  pageSize?: number;
+  search?: string;
+  role?: UserRole | 'all';
+  orderBy?: 'created_at' | 'last_sign_in_at';
+  orderDir?: 'asc' | 'desc';
+} = {}): Promise<{ success: boolean; users?: User[]; total?: number; error?: string; hasMore?: boolean }> => {
+  const {
+    page = 1,
+    pageSize = 25,
+    search,
+    role = 'all',
+    orderBy = 'created_at',
+    orderDir = 'desc'
+  } = params;
+  try {
+    const from = (page - 1) * pageSize;
+    const to = from + pageSize - 1;
+    let query = supabase
+      .from('profiles')
+      .select('*', { count: 'exact' })
+      .order(orderBy, { ascending: orderDir === 'asc' })
+      .range(from, to);
+
+    if (role !== 'all') {
+      query = query.eq('role', role);
+    }
+
+    if (search && search.trim()) {
+      const term = `%${search.trim()}%`;
+      // Supabase or filter across columns
+      query = query.or(`full_name.ilike.${term},email.ilike.${term}`);
+    }
+
+    const { data, error, count } = await query;
+    if (error) {
+      console.error('Error fetching users (paginated):', error);
+      return { success: false, error: error.message };
+    }
+    const users: User[] = (data || []).map((profile: any) => ({
+      id: profile.id,
+      email: profile.email || '',
+      created_at: profile.created_at,
+      updated_at: profile.updated_at,
+      last_sign_in_at: profile.last_sign_in_at,
+      user_metadata: {
+        full_name: profile.full_name,
+        avatar_url: profile.avatar_url
+      },
+      app_metadata: {
+        role: profile.role as UserRole
+      }
+    }));
+    const total = count || 0;
+    const hasMore = to + 1 < total;
+    return { success: true, users, total, hasMore };
+  } catch (err) {
+    console.error('Unexpected error in fetchUsers:', err);
+    return { success: false, error: 'Failed to fetch users' };
+  }
+};
+
 // ============================================
 // MEAL CURATION SYSTEM QUERIES
 // ============================================
 
 import type {
-  CreateMealData,
-  DietaryTag,
-  Ingredient,
-  IngredientCategory,
-  Meal
+    CreateMealData,
+    DietaryTag,
+    Ingredient,
+    IngredientCategory,
+    Meal
 } from '../types';
 
 // ===== INGREDIENT QUERIES =====
