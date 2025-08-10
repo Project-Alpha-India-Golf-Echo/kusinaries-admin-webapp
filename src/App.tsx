@@ -1,22 +1,23 @@
 
-import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom'
-import { AuthProvider } from './contexts/AuthContext'
-import { ModalProvider, useModal } from './contexts/ModalContext'
-import { ProtectedRoute } from './components/ProtectedRoute'
+import { Toaster } from "@/components/ui/sonner"
+import { Navigate, Route, BrowserRouter as Router, Routes } from 'react-router-dom'
+import CookDetailsModal from './components/CookDetailsModal'
+import { CreateEditIngredientModal } from './components/CreateEditIngredientModal'
+import { CreateEditMealModal } from './components/CreateEditMealModal'
+import { CreateUserModal } from './components/CreateUserModal'
 import { Layout } from './components/Layout'
 import { LoginForm } from './components/LoginForm'
-import { DashboardPage } from './pages/DashboardPage'
-import { UsersPage } from './pages/UsersPage'
-import { SettingsPage } from './pages/SettingsPage'
-import { HistoryPage } from './pages/HistoryPage'
-import { CreateUserModal } from './components/CreateUserModal'
-import { CreateEditMealModal } from './components/CreateEditMealModal'
-import { CreateEditIngredientModal } from './components/CreateEditIngredientModal'
-import { IngredientsPage } from './pages/IngredientsPage'
+import { ProtectedRoute } from './components/ProtectedRoute'
+import { AuthProvider } from './contexts/AuthContext'
+import { ModalProvider, useModal } from './contexts/ModalContext'
 import './index.css'
-import { MealCurationPage } from './pages/MealCurationPage'
-import { Toaster } from "@/components/ui/sonner"
+import { DashboardPage } from './pages/DashboardPage'
 import { GrantPage } from './pages/GrantPage'
+import { HistoryPage } from './pages/HistoryPage'
+import { IngredientsPage } from './pages/IngredientsPage'
+import { MealCurationPage } from './pages/MealCurationPage'
+import { SettingsPage } from './pages/SettingsPage'
+import { UsersPage } from './pages/UsersPage'
 
 function AppContent() {
   const {
@@ -31,7 +32,10 @@ function AppContent() {
     editingIngredient,
     initialIngredientCategory,
     closeCreateEditIngredientModal,
-    onIngredientSaved
+  onIngredientSaved,
+  showCookDetailsModal,
+  selectedCook,
+  closeCookDetails
   } = useModal();
 
   return (
@@ -81,6 +85,12 @@ function AppContent() {
         onIngredientSaved={onIngredientSaved}
         editingIngredient={editingIngredient}
         initialCategory={initialIngredientCategory}
+      />
+
+      <CookDetailsModal
+        cook={selectedCook}
+        open={showCookDetailsModal}
+        onClose={closeCookDetails}
       />
     </Router>
   );

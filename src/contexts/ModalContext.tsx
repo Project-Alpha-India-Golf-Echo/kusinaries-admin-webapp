@@ -1,5 +1,5 @@
 import { createContext, useContext, useState } from 'react';
-import type { Meal, Ingredient, IngredientCategory } from '../types';
+import type { Cook, Ingredient, IngredientCategory, Meal } from '../types';
 
 interface ModalContextType {
   // User modals
@@ -24,6 +24,12 @@ interface ModalContextType {
   openEditIngredientModal: (ingredient: Ingredient) => void;
   closeCreateEditIngredientModal: () => void;
   onIngredientSaved: () => void;
+
+  // Cook details modal
+  showCookDetailsModal: boolean;
+  selectedCook: Cook | null;
+  openCookDetails: (cook: Cook) => void;
+  closeCookDetails: () => void;
 }
 
 const ModalContext = createContext<ModalContextType | undefined>(undefined);
@@ -48,6 +54,9 @@ export const ModalProvider = ({ children }: { children: React.ReactNode }) => {
   const [showCreateEditIngredientModal, setShowCreateEditIngredientModal] = useState(false);
   const [editingIngredient, setEditingIngredient] = useState<Ingredient | null>(null);
   const [initialIngredientCategory, setInitialIngredientCategory] = useState<IngredientCategory | undefined>(undefined);
+  // Cook details state
+  const [showCookDetailsModal, setShowCookDetailsModal] = useState(false);
+  const [selectedCook, setSelectedCook] = useState<Cook | null>(null);
 
   // User modal functions
   const openCreateUserModal = () => setShowCreateUserModal(true);
@@ -103,6 +112,16 @@ export const ModalProvider = ({ children }: { children: React.ReactNode }) => {
     window.dispatchEvent(new CustomEvent('ingredientSaved'));
   };
 
+  // Cook details modal functions
+  const openCookDetails = (cook: Cook) => {
+    setSelectedCook(cook);
+    setShowCookDetailsModal(true);
+  };
+  const closeCookDetails = () => {
+    setShowCookDetailsModal(false);
+    setSelectedCook(null);
+  };
+
   return (
     <ModalContext.Provider
       value={{
@@ -128,6 +147,12 @@ export const ModalProvider = ({ children }: { children: React.ReactNode }) => {
         openEditIngredientModal,
         closeCreateEditIngredientModal,
         onIngredientSaved,
+
+  // Cook details modal
+  showCookDetailsModal,
+  selectedCook,
+  openCookDetails,
+  closeCookDetails,
       }}
     >
       {children}
