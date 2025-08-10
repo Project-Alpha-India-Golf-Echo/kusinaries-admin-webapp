@@ -84,17 +84,51 @@ export interface MealFilters {
 }
 
 // Audit Trail Types
-export type AuditAction = 'created' | 'updated' | 'archived' | 'restored';
-export type EntityType = 'meal' | 'ingredient';
+export type AuditAction = 'created' | 'updated' | 'archived' | 'restored' | 'approved' | 'rejected' | 'reopened';
+export type EntityType = 'meal' | 'ingredient' | 'cook';
 
 export interface ActivityLog {
   log_id: number;
   entity_type: EntityType;
-  entity_id: number;
+  entity_id: number | string; // allow string for cook UUIDs
   entity_name: string;
   action: AuditAction;
   changed_by: string;
   changed_at: string;
   changes?: Record<string, any>;
   notes?: string;
+}
+
+// ================================
+// Cook Verification (Grants) Types
+// ================================
+// NOTE: Schema assumptions (adjust to actual DB schema):
+// Table name: cooks
+// Columns: id (uuid), user_id (uuid, FK to auth.users / profiles), full_name (text), bio (text),
+//   specialty (text), years_experience (int), avatar_url (text), government_id_url (text),
+//   certificates (json[] or text[]), location (text), created_at (timestamptz), updated_at (timestamptz),
+//   for_review (boolean), is_verified (boolean), verified_at (timestamptz), rejection_reason (text)
+// If your actual columns differ, update the Cook interface & related queries accordingly.
+export interface Cook {
+  id: string;
+  profile_id: string;
+  username?: string;
+  home_address?: string;
+  contact_number?: string;
+  gender?: string;
+  cook_type?: string; // e.g., home_cook, professional, etc.
+  learn_to_cook?: string[] | null;
+  learn_to_cook_other?: string | null;
+  wears_ppe?: boolean | null;
+  not_wearing_ppe_reason?: string | null;
+  available_days?: string[] | null;
+  available_times?: string[] | null;
+  experience?: any; // jsonb structure (array/object)
+  certificate_image_url?: string | null;
+  kitchen_image_url?: string | null;
+  is_verified: boolean;
+  is_rejected?: boolean | null;
+  for_review?: boolean | null;
+  created_at?: string;
+  updated_at?: string;
 }

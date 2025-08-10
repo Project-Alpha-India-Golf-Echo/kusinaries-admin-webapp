@@ -6,7 +6,7 @@ import { supabase } from './supabase';
 export const isCurrentUserAdmin = async (): Promise<boolean> => {
   try {
     const { data: { user }, error: authError } = await supabase.auth.getUser();
-    
+
     if (authError || !user) {
       return false;
     }
@@ -16,7 +16,7 @@ export const isCurrentUserAdmin = async (): Promise<boolean> => {
       .select('role')
       .eq('id', user.id)
       .single();
-    
+
     if (error) {
       console.error('Error checking user role:', error);
       return false;
@@ -33,7 +33,7 @@ export const isCurrentUserAdmin = async (): Promise<boolean> => {
 export const getCurrentUserRole = async (): Promise<string | null> => {
   try {
     const { data: { user }, error: authError } = await supabase.auth.getUser();
-    
+
     if (authError || !user) {
       return null;
     }
@@ -43,7 +43,7 @@ export const getCurrentUserRole = async (): Promise<string | null> => {
       .select('role')
       .eq('id', user.id)
       .single();
-    
+
     if (error) {
       console.error('Error fetching user role:', error);
       return null;
@@ -58,9 +58,9 @@ export const getCurrentUserRole = async (): Promise<string | null> => {
 
 // Create a new user account
 export const createUserAccount = async (
-  email: string, 
-  password: string, 
-  fullName: string, 
+  email: string,
+  password: string,
+  fullName: string,
   role: UserRole = 'user'
 ): Promise<{ success: boolean; error?: string; user?: any }> => {
   try {
@@ -72,7 +72,7 @@ export const createUserAccount = async (
 
     // Store current session to restore later
     const { data: currentSession } = await supabase.auth.getSession();
-    
+
     // Create user using regular signup (this will work with anon key)
     const { data, error } = await supabase.auth.signUp({
       email,
@@ -120,9 +120,9 @@ export const createUserAccount = async (
     return { success: true, user: data.user };
   } catch (error) {
     console.error('Error in createUserAccount:', error);
-    return { 
-      success: false, 
-      error: error instanceof Error ? error.message : 'Unknown error occurred' 
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Unknown error occurred'
     };
   }
 }
@@ -131,7 +131,7 @@ export const fetchUsersFromProfiles = async (): Promise<User[]> => {
   try {
     // First check if user is authenticated
     const { data: { user }, error: authError } = await supabase.auth.getUser();
-    
+
     if (authError || !user) {
       throw new Error('User not authenticated');
     }
@@ -143,7 +143,7 @@ export const fetchUsersFromProfiles = async (): Promise<User[]> => {
       .from('profiles')
       .select('*')
       .order('created_at', { ascending: false });
-    
+
     if (error) {
       console.error('Supabase error details:', error);
       throw error;
@@ -179,7 +179,7 @@ export const updateUserProfile = async (updates: {
 }): Promise<{ success: boolean; error?: string }> => {
   try {
     const { data: { user }, error: authError } = await supabase.auth.getUser();
-    
+
     if (authError || !user) {
       return { success: false, error: 'User not authenticated' };
     }
@@ -189,7 +189,7 @@ export const updateUserProfile = async (updates: {
       const { error: metadataError } = await supabase.auth.updateUser({
         data: { full_name: updates.fullName }
       });
-      
+
       if (metadataError) {
         console.error('Error updating user metadata:', metadataError);
         return { success: false, error: metadataError.message };
@@ -212,7 +212,7 @@ export const updateUserProfile = async (updates: {
       const { error: emailError } = await supabase.auth.updateUser({
         email: updates.email
       });
-      
+
       if (emailError) {
         console.error('Error updating email:', emailError);
         return { success: false, error: emailError.message };
@@ -228,12 +228,12 @@ export const updateUserProfile = async (updates: {
 
 // Change user password
 export const changeUserPassword = async (
-  currentPassword: string, 
+  currentPassword: string,
   newPassword: string
 ): Promise<{ success: boolean; error?: string }> => {
   try {
     const { data: { user }, error: authError } = await supabase.auth.getUser();
-    
+
     if (authError || !user) {
       return { success: false, error: 'User not authenticated' };
     }
@@ -364,11 +364,11 @@ export const fetchUsers = async (params: {
 // ============================================
 
 import type {
-    CreateMealData,
-    DietaryTag,
-    Ingredient,
-    IngredientCategory,
-    Meal
+  CreateMealData,
+  DietaryTag,
+  Ingredient,
+  IngredientCategory,
+  Meal
 } from '../types';
 
 // ===== INGREDIENT QUERIES =====
@@ -667,7 +667,7 @@ export const getMealById = async (id: string): Promise<{ success: boolean; data?
           )
         )
       `)
-  .eq('meal_id', id)
+      .eq('meal_id', id)
       .single();
 
     if (error) {
@@ -773,7 +773,7 @@ export const deleteMeal = async (id: string): Promise<{ success: boolean; error?
     const { error } = await supabase
       .from('meals')
       .delete()
-  .eq('meal_id', id);
+      .eq('meal_id', id);
 
     if (error) {
       console.error('Error deleting meal:', error);
@@ -916,16 +916,16 @@ export const restoreMeal = async (id: number): Promise<{ success: boolean; error
 
 // Create activity log entry
 export const createActivityLogEntry = async (
-  entityType: 'meal' | 'ingredient',
-  entityId: number,
+  entityType: 'meal' | 'ingredient' | 'cook',
+  entityId: number | string,
   entityName: string,
-  action: 'created' | 'updated' | 'archived' | 'restored',
+  action: 'created' | 'updated' | 'archived' | 'restored' | 'approved' | 'rejected' | 'reopened',
   changes?: Record<string, any>,
   notes?: string
 ): Promise<{ success: boolean; error?: string }> => {
   try {
     const { data: { user }, error: authError } = await supabase.auth.getUser();
-    
+
     if (authError || !user) {
       return { success: false, error: 'User not authenticated' };
     }
@@ -936,10 +936,10 @@ export const createActivityLogEntry = async (
         entity_type: entityType,
         entity_id: entityId,
         entity_name: entityName,
-        action: action,
+  action: action,
         changed_by: user.email || 'Unknown User',
         changes: changes,
-        notes: notes
+  notes: notes
       });
 
     if (error) {
@@ -1020,19 +1020,19 @@ export const getDashboardStats = async (): Promise<{
     ] = await Promise.all([
       // Total meals (active and archived)
       supabase.from('meals').select('meal_id, is_disabled', { count: 'exact' }),
-      
+
       // Total ingredients (active and archived)
       supabase.from('ingredients').select('ingredient_id, is_disabled', { count: 'exact' }),
-      
+
       // Total users
       supabase.from('profiles').select('id', { count: 'exact' }),
-      
+
       // Meals by category
       supabase
         .from('meals')
         .select('category')
         .eq('is_disabled', false),
-      
+
       // Ingredients by category
       supabase
         .from('ingredients')
@@ -1054,7 +1054,7 @@ export const getDashboardStats = async (): Promise<{
         .from('activity_log')
         .select('log_id', { count: 'exact' })
         .gte('changed_at', new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString());
-      
+
       if (!activitiesResult.error) {
         recentActivitiesCount = activitiesResult.count || 0;
       }
@@ -1136,6 +1136,175 @@ export const getRecentActivities = async (limit: number = 5): Promise<{
   } catch (error) {
     console.error('Error fetching recent activities:', error);
     return { success: false, error: 'Failed to fetch recent activities' };
+  }
+};
+
+// ================================
+// Cook Verification (Grants) Queries
+// ================================
+import type { Cook } from '../types';
+
+// Fetch cooks pending review (for_review = true, is_verified = false)
+export const getPendingCooks = async (params: { search?: string; page?: number; pageSize?: number } = {}): Promise<{
+  success: boolean; data?: Cook[]; total?: number; hasMore?: boolean; error?: string;
+}> => {
+  const { search, page = 1, pageSize = 20 } = params;
+  try {
+    const from = (page - 1) * pageSize;
+    const to = from + pageSize - 1;
+    let query = supabase
+      .from('cooks')
+      .select('*', { count: 'exact' })
+      .eq('for_review', true)
+      .eq('is_verified', false)
+      .order('created_at', { ascending: false })
+      .range(from, to);
+
+    if (search && search.trim()) {
+      const term = `%${search.trim()}%`;
+      // Search across available text columns we have (username, home_address, cook_type)
+      query = query.or(`username.ilike.${term},home_address.ilike.${term},cook_type.ilike.${term}`);
+    }
+
+    const { data, error, count } = await query;
+    if (error) {
+      console.error('[getPendingCooks] primary query error:', error);
+      throw error;
+    }
+    console.log('[getPendingCooks] result length:', data?.length, 'count:', count, 'page:', page, 'pageSize:', pageSize, 'search:', search);
+    // Diagnostic fallback if empty on first page
+    if ((data?.length || 0) === 0 && page === 1) {
+      const fallback = await supabase
+        .from('cooks')
+        .select('id, for_review, is_verified, created_at', { count: 'exact' })
+        .order('created_at', { ascending: false })
+        .limit(10);
+      console.log('[getPendingCooks] fallback sample (unfiltered first 10):', fallback.data, 'fallback count:', fallback.count, 'fallback error:', fallback.error);
+    }
+    return {
+      success: true,
+      data: (data || []) as Cook[],
+      total: count || 0,
+      hasMore: to + 1 < (count || 0)
+    };
+  } catch (error) {
+    console.error('Error fetching pending cooks:', error);
+    return { success: false, error: 'Failed to fetch pending cooks' };
+  }
+};
+
+// Generic cook fetch with status filter: 'pending' | 'approved' | 'rejected' | 'all'
+export const getCooksByStatus = async (params: { status?: 'pending' | 'approved' | 'rejected' | 'all'; search?: string; page?: number; pageSize?: number } = {}): Promise<{
+  success: boolean; data?: Cook[]; total?: number; hasMore?: boolean; error?: string;
+}> => {
+  const { status = 'all', search, page = 1, pageSize = 20 } = params;
+  try {
+    const from = (page - 1) * pageSize;
+    const to = from + pageSize - 1;
+    let query = supabase
+      .from('cooks')
+      .select('*', { count: 'exact' })
+      .order('created_at', { ascending: false })
+      .range(from, to);
+
+    if (status === 'pending') {
+      query = query.eq('for_review', true).eq('is_verified', false).eq('is_rejected', false);
+    } else if (status === 'approved') {
+      query = query.eq('for_review', true).eq('is_verified', true).eq('is_rejected', false);
+    } else if (status === 'rejected') {
+      query = query.eq('for_review', true).eq('is_rejected', true);
+    } else if (status === 'all') {
+      query = query.eq('for_review', true);
+    }
+
+    if (search && search.trim()) {
+      const term = `%${search.trim()}%`;
+      query = query.or(`username.ilike.${term},home_address.ilike.${term},cook_type.ilike.${term}`);
+    }
+
+    const { data, error, count } = await query;
+    if (error) throw error;
+    return { success: true, data: (data || []) as Cook[], total: count || 0, hasMore: to + 1 < (count || 0) };
+  } catch (e) {
+    console.error('[getCooksByStatus] error:', e);
+    return { success: false, error: 'Failed to fetch cooks' };
+  }
+};
+
+export const getAllCooks = async (): Promise<{ success: boolean; data?: Cook[]; error?: string }> => {
+  try {
+    const { data, error } = await supabase.from('cooks').select('*').order('created_at', { ascending: false });
+    if (error) throw error;
+    return { success: true, data: (data || []) as Cook[] };
+  } catch (e) {
+    console.error('[getAllCooks] error:', e);
+    return { success: false, error: 'Failed to fetch cooks' };
+  }
+};
+
+// Approve cook application: set is_verified=true, keep for_review=true, clear rejection
+export const approveCook = async (cookId: string): Promise<{ success: boolean; error?: string }> => {
+  try {
+    const { error } = await supabase
+      .from('cooks')
+  .update({ is_verified: true, is_rejected: false, for_review: true })
+      .eq('id', cookId);
+    if (error) throw error;
+  // log
+  await createActivityLogEntry('cook', cookId, 'Cook', 'approved');
+    return { success: true };
+  } catch (error) {
+    console.error('Error approving cook:', error);
+    return { success: false, error: 'Failed to approve cook' };
+  }
+};
+
+// Reject cook application: mark rejected, keep for_review=true
+export const rejectCook = async (cookId: string, _reason: string): Promise<{ success: boolean; error?: string }> => {
+  try {
+    const { error } = await supabase
+      .from('cooks')
+  .update({ is_verified: false, is_rejected: true, for_review: true, rejection_reason: _reason })
+      .eq('id', cookId);
+    if (error) throw error;
+  await createActivityLogEntry('cook', cookId, 'Cook', 'rejected', { rejection_reason: _reason });
+    return { success: true };
+  } catch (error) {
+    console.error('Error rejecting cook:', error);
+    return { success: false, error: 'Failed to reject cook' };
+  }
+};
+
+// Re-open / reset application: clear verified & rejected
+export const reopenCookReview = async (cookId: string): Promise<{ success: boolean; error?: string }> => {
+  try {
+    const { error } = await supabase
+      .from('cooks')
+  .update({ for_review: true, is_rejected: false, is_verified: false })
+      .eq('id', cookId);
+    if (error) throw error;
+  await createActivityLogEntry('cook', cookId, 'Cook', 'reopened');
+    return { success: true };
+  } catch (error) {
+    console.error('Error reopening cook review:', error);
+    return { success: false, error: 'Failed to reopen review' };
+  }
+};
+
+// List recently verified cooks (for sidebar/metrics)
+export const getRecentlyVerifiedCooks = async (limit: number = 5): Promise<{ success: boolean; data?: Cook[]; error?: string }> => {
+  try {
+    const { data, error } = await supabase
+      .from('cooks')
+      .select('*')
+      .eq('is_verified', true)
+      .order('updated_at', { ascending: false })
+      .limit(limit);
+    if (error) throw error;
+    return { success: true, data: (data || []) as Cook[] };
+  } catch (error) {
+    console.error('Error fetching recently verified cooks:', error);
+    return { success: false, error: 'Failed to fetch verified cooks' };
   }
 };
 
