@@ -1,9 +1,9 @@
 {
   "appName": "project-alpha-admin",
-  "version": "0.0.0",
-  "buildTime": "dev",
-  "gitCommit": "dev",
-  "gitBranch": "dev",
-  "gitTag": "dev",
-  "node": "dev"
+  "version": "1.0.0",
+  "buildTime": "2025-08-10T09:18:24.577Z",
+  "gitCommit": "d5b6347",
+  "gitBranch": "main",
+  "gitTag": "v1.0.0",
+  "node": "v24.5.0"
 }
