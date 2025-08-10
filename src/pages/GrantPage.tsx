@@ -8,7 +8,7 @@ import { useModal } from '@/contexts/ModalContext';
 import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
 import { useDocumentTitle } from '../hooks/useDocumentTitle';
-import { approveCook, getCooksByStatus, rejectCook, reopenCookReview } from '../lib/supabaseQueries';
+import { getCooksByStatus, rejectCook, reopenCookReview } from '../lib/supabaseQueries';
 import type { Cook } from '../types';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 
@@ -67,15 +67,6 @@ export const GrantPage = () => {
 
   const loadMore = () => { if (!loading && hasMore) setPage(p => p + 1); };
 
-  const handleApprove = async (cook: Cook) => {
-    setActionLoading(cook.id);
-    const res = await approveCook(cook.id);
-    if (res.success) {
-      toast.success(`${cook.username || 'Cook'} approved`);
-      setCooks(prev => prev.map(c => c.id === cook.id ? { ...c, is_verified: true, is_rejected: false, for_review: true } : c));
-    } else toast.error(res.error || 'Failed to approve');
-    setActionLoading(null);
-  };
 
   const submitRejection = async () => {
     if (!rejectingCook) return;
