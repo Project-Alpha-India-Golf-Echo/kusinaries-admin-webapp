@@ -274,20 +274,44 @@ export const updateUserRole = async (
     // Check if current user is admin
     const isAdmin = await isCurrentUserAdmin();
     if (!isAdmin) {
+      console.warn('Non-admin user attempted to update user role');
       return { success: false, error: 'Only admins can update user roles' };
     }
 
-    // Update the user's role in the profiles table
-    const { error } = await supabase
-      .from('profiles')
-      .update({ role: newRole })
-      .eq('id', userId);
-
-    if (error) {
-      console.error('Error updating user role:', error);
-      return { success: false, error: error.message };
+    // Validate userId and role
+    if (!userId) {
+      return { success: false, error: 'User ID is required' };
+    }
+    
+    if (!['admin', 'user', 'cook', 'family_head'].includes(newRole)) {
+      return { success: false, error: 'Invalid role specified' };
     }
 
+    console.log(`Attempting to update user ${userId} role to ${newRole}`);
+
+    // Update the user's role in the profiles table
+    const { data, error } = await supabase
+      .from('profiles')
+      .update({ role: newRole, updated_at: new Date().toISOString() })
+      .eq('id', userId)
+      .select('id, role');
+
+    if (error) {
+      console.error('Supabase error updating user role:', {
+        code: error.code,
+        message: error.message,
+        details: error.details,
+        hint: error.hint,
+      });
+      return { success: false, error: `Database error: ${error.message}` };
+    }
+
+    if (!data || data.length === 0) {
+      console.warn(`No user found with ID: ${userId}`);
+      return { success: false, error: 'User not found' };
+    }
+
+    console.log(`Successfully updated user ${userId} role to ${newRole}`);
     return { success: true };
   } catch (error) {
     console.error('Error in updateUserRole:', error);
