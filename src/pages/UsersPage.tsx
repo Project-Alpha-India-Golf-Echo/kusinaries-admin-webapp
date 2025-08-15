@@ -7,7 +7,7 @@ import { useEffect, useState } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { useModal } from '../contexts/ModalContext';
 import { useDocumentTitle } from '../hooks/useDocumentTitle';
-import { fetchUsers, updateUserRole } from '../lib/supabaseQueries';
+import { fetchUsers } from '../lib/supabaseQueries';
 import type { User } from '../types';
 
 export const UsersPage = () => {
@@ -23,13 +23,13 @@ export const UsersPage = () => {
   useDocumentTitle('User Management');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [updatingRole, setUpdatingRole] = useState<string | null>(null);
+  // const [updatingRole, setUpdatingRole] = useState<string | null>(null); // removed with new edit modal
   const [notification, setNotification] = useState<{
     type: 'success' | 'error';
     message: string;
   } | null>(null);
   const { user: currentUser, isAdmin } = useAuth();
-  const { openCreateUserModal } = useModal();
+  const { openCreateUserModal, openEditUserModal } = useModal();
 
   useEffect(() => {
     const loadUsers = async (reset = false) => {
@@ -98,39 +98,17 @@ export const UsersPage = () => {
     setPage(p => p + 1);
   };
 
-  const handleRoleChange = async (userId: string, newRole: 'admin' | 'user' | 'family_head' | 'cook') => {
-    if (!isAdmin || userId === currentUser?.id) return;
-    
-    setUpdatingRole(userId);
-    try {
-      const result = await updateUserRole(userId, newRole);
-      
-      if (result.success) {
-        // Update the local state
-  setUsers(prevUsers => prevUsers.map(u => u.id === userId ? { ...u, app_metadata: { ...u.app_metadata, role: newRole } } : u));
-        setNotification({
-          type: 'success',
-          message: `User role updated to ${newRole} successfully!`
-        });
-        setTimeout(() => setNotification(null), 5000);
-      } else {
-        setNotification({
-          type: 'error',
-          message: `Failed to update role: ${result.error}`
-        });
-        setTimeout(() => setNotification(null), 5000);
-      }
-    } catch (error) {
-      console.error('Error updating role:', error);
-      setNotification({
-        type: 'error',
-        message: 'An error occurred while updating the role'
-      });
-      setTimeout(() => setNotification(null), 5000);
-    } finally {
-      setUpdatingRole(null);
-    }
-  };
+  // Removed role change dropdown logic; now handled in edit modal
+
+  useEffect(() => {
+    const handler = (e: any) => {
+      const updated = e.detail as Partial<User> & { id: string };
+      if (!updated) return;
+      setUsers(prev => prev.map(u => u.id === updated.id ? { ...u, ...updated, user_metadata: { ...u.user_metadata, ...updated.user_metadata }, app_metadata: { ...u.app_metadata, ...updated.app_metadata } } : u));
+    };
+    window.addEventListener('userUpdated', handler as any);
+    return () => window.removeEventListener('userUpdated', handler as any);
+  }, []);
 
   const formatDate = (dateString: string) => {
     return new Date(dateString).toLocaleDateString('en-US', {
@@ -334,170 +312,106 @@ export const UsersPage = () => {
           </div>
         )}
 
-        {/* Users List */}
+        {/* Users Table (Updated UI) */}
         {!loading && !error && (
-          <div className="space-y-6">
+          <div className="bg-white border border-gray-200 rounded-xl shadow-sm overflow-hidden">
             {users.length === 0 ? (
-              <div className="bg-white rounded-lg border border-gray-200 shadow-sm">
-                <div className="text-center py-16">
-                  <div className="w-12 h-12 mx-auto text-gray-400 mb-4">
-                    <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197m13.5-9a2.25 2.25 0 11-4.5 0 2.25 2.25 0 014.5 0z" />
-                    </svg>
-                  </div>
-                  <h3 className="text-sm font-medium text-gray-900 mb-1">No users found</h3>
-                  <p className="text-sm text-gray-500">Get started by creating your first user.</p>
+              <div className="py-16 text-center">
+                <div className="w-12 h-12 mx-auto text-gray-300 mb-4">
+                  <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" className="w-12 h-12">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197m13.5-9a2.25 2.25 0 11-4.5 0 2.25 2.25 0 014.5 0z" />
+                  </svg>
                 </div>
+                <h3 className="text-sm font-medium text-gray-900 mb-1">No users found</h3>
+                <p className="text-sm text-gray-500">Try adjusting your filters or create a new user.</p>
               </div>
             ) : (
-              <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden hover:shadow-md transition-shadow duration-200">
-                <div className="divide-y divide-gray-200">
-                  {users.map((user) => {
-                    const isCurrentUser = currentUser?.id === user.id;
-                    return (
-                      <div 
-                        key={user.id} 
-                        className={`p-6 hover:bg-gray-50 transition-all duration-200 border-l-4 ${
-                          isCurrentUser 
-                            ? 'bg-blue-50 border-l-blue-500 shadow-sm' 
-                            : 'border-l-transparent hover:border-l-gray-300'
-                        }`}
-                      >
-                        <div className="flex items-center justify-between">
-                          <div className="flex items-center space-x-4">
-                            {/* Avatar */}
-                            <div className={`w-10 h-10 rounded-full flex items-center justify-center text-sm font-medium ${
-                              isCurrentUser ? 'bg-blue-100 text-blue-700' : 'bg-gray-100 text-gray-700'
-                            }`}>
-                              {getInitials(user.user_metadata?.display_name, user.email)}
-                            </div>
-                            
-                            {/* User Info */}
-                            <div className="flex-1 min-w-0">
-                              <div className="flex items-center space-x-2">
-                                <p className="text-sm font-medium text-gray-900 truncate">
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead className="bg-gray-50 border-b border-gray-200">
+                    <tr className="text-left text-xs font-semibold text-gray-600 tracking-wide">
+                      <th className="px-6 py-3">Username</th>
+                      <th className="px-6 py-3">Role</th>
+                      <th className="px-6 py-3">Supabase UID</th>
+                      <th className="px-6 py-3">Registered</th>
+                      <th className="px-6 py-3">Status</th>
+                      {isAdmin && <th className="px-6 py-3 text-right">Actions</th>}
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-100">
+                    {users.map(user => {
+                      const isCurrentUser = currentUser?.id === user.id;
+                      return (
+                        <tr
+                          key={user.id}
+                          className={`${isCurrentUser ? 'bg-blue-50/60' : 'bg-white hover:bg-gray-50'} transition-colors`}
+                        >
+                          {/* Username */}
+                          <td className="px-6 py-4 whitespace-nowrap">
+                            <div className="flex items-center space-x-3 max-w-[240px]">
+                              <div className={`flex-shrink-0 w-9 h-9 rounded-full flex items-center justify-center text-xs font-medium ${isCurrentUser ? 'bg-blue-100 text-blue-700' : 'bg-gray-100 text-gray-700'}`}> 
+                                {getInitials(user.user_metadata?.display_name, user.email)}
+                              </div>
+                              <div className="min-w-0">
+                                <p className="font-medium text-gray-900 truncate">
                                   {user.user_metadata?.display_name || user.email}
                                 </p>
-                                {isCurrentUser && (
-                                  <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
-                                    You
-                                  </span>
-                                )}
-                                {user.app_metadata?.role && (
-                                  <div className="flex items-center space-x-3">
-                                    {/* Role Badge */}
-                                    <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold shadow-sm ${roleColorClasses(user.app_metadata.role)}`}>
-                                      <svg className="w-3 h-3 mr-1.5" fill="currentColor" viewBox="0 0 20 20">
-                                        {user.app_metadata.role === 'admin' && (<path fillRule="evenodd" d="M3 6a3 3 0 013-3h10a1 1 0 01.8 1.6L14.25 8l2.55 3.4A1 1 0 0116 13H6a1 1 0 00-1 1v3a1 1 0 11-2 0V6z" clipRule="evenodd" />)}
-                                        {user.app_metadata.role === 'user' && (<path fillRule="evenodd" d="M10 9a3 3 0 100-6 3 3 0 000 6zm-7 9a7 7 0 1114 0H3z" clipRule="evenodd" />)}
-                                        {user.app_metadata.role === 'family_head' && (<path fillRule="evenodd" d="M10 2a4 4 0 00-4 4v1H5a2 2 0 00-2 2v1a3 3 0 003 3h8a3 3 0 003-3V9a2 2 0 00-2-2h-1V6a4 4 0 00-4-4zM7 15a3 3 0 016 0v1H7v-1z" clipRule="evenodd" />)}
-                                        {user.app_metadata.role === 'cook' && (<path fillRule="evenodd" d="M6 3a1 1 0 00-1 1v1H4a1 1 0 00-1 1v1h14V6a1 1 0 00-1-1h-1V4a1 1 0 00-1-1H6zm11 6H3l1 9a1 1 0 001 .9h10a1 1 0 001-.9l1-9z" clipRule="evenodd" />)}
-                                      </svg>
-                                      {roleLabel(user.app_metadata.role)}
-                                    </span>
-                                    
-                                    {/* Role Change Dropdown for Admins */}
-                                    {isAdmin && user.id !== currentUser?.id && (
-                                      <div className="relative">
-                                        {updatingRole === user.id ? (
-                                          <div className="flex items-center space-x-2 bg-blue-50 border border-blue-200 rounded-lg px-3 py-1.5">
-                                            <div className="animate-spin rounded-full h-3 w-3 border-2 border-blue-300 border-t-blue-600"></div>
-                                            <span className="text-xs text-blue-700 font-medium">Updating...</span>
-                                          </div>
-                                        ) : (
-                                          <div className="flex items-center space-x-2">
-                                            <span className="text-xs text-gray-600 font-medium">Change to:</span>
-                                            <div className="relative">
-                                              <Select value={user.app_metadata.role} onValueChange={(val) => handleRoleChange(user.id, val as any)}>
-                                                <SelectTrigger size="sm" className="text-xs pr-6">
-                                                  <SelectValue />
-                                                </SelectTrigger>
-                                                <SelectContent>
-                                                  <SelectItem value="user">� User</SelectItem>
-                                                  <SelectItem value="family_head">🏠 Family Head</SelectItem>
-                                                  <SelectItem value="cook">👨‍🍳 Cook</SelectItem>
-                                                  <SelectItem value="admin">👑 Admin</SelectItem>
-                                                </SelectContent>
-                                              </Select>
-                                            </div>
-                                          </div>
-                                        )}
-                                      </div>
-                                    )}
-                                  </div>
-                                )}
+                                <p className="text-xs text-gray-500 truncate">{user.email}</p>
                               </div>
-                              <p className="text-sm text-gray-500 truncate">{user.email}</p>
+                              {isCurrentUser && (
+                                <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium bg-blue-100 text-blue-700">You</span>
+                              )}
                             </div>
-                          </div>
-
-                          {/* Status & Actions */}
-                          <div className="flex items-center space-x-4">
-                            <div className="text-right">
-                              <div className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium ${getStatusColor(user.last_sign_in_at)}`}>
-                                <div className={`w-2 h-2 rounded-full mr-1.5 ${
-                                  !user.last_sign_in_at ? 'bg-gray-400' :
-                                  Math.floor((Date.now() - new Date(user.last_sign_in_at).getTime()) / (1000 * 60 * 60 * 24)) === 0 ? 'bg-green-500' :
-                                  Math.floor((Date.now() - new Date(user.last_sign_in_at).getTime()) / (1000 * 60 * 60 * 24)) <= 7 ? 'bg-blue-500' :
-                                  Math.floor((Date.now() - new Date(user.last_sign_in_at).getTime()) / (1000 * 60 * 60 * 24)) <= 30 ? 'bg-yellow-500' :
-                                  'bg-gray-400'
-                                }`} />
-                                {getStatusText(user.last_sign_in_at)}
-                              </div>
-                              <p className="text-xs text-gray-500 mt-1">
-                                Joined {formatDate(user.created_at).split(',')[0]}
-                              </p>
+                          </td>
+                          {/* Role */}
+                          <td className="px-6 py-4 whitespace-nowrap">
+                            <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold ${roleColorClasses(user.app_metadata?.role)}`}>
+                              {roleLabel(user.app_metadata?.role)}
+                            </span>
+                          </td>
+              
+                          {/* Supabase UID */}
+                          <td className="px-6 py-4 font-mono text-[11px] text-gray-700 max-w-[160px] truncate" title={user.id}>{user.id}</td>
+                          {/* Registered */}
+                          <td className="px-6 py-4 whitespace-nowrap text-xs text-gray-700">
+                            {formatDate(user.created_at).split(',')[0]}
+                          </td>
+                          {/* Status */}
+                          <td className="px-6 py-4 whitespace-nowrap">
+                            <div className={`inline-flex items-center px-2.5 py-1 rounded-full text-[11px] font-medium ${getStatusColor(user.last_sign_in_at)}`}>
+                              <span className={`w-2 h-2 rounded-full mr-1.5 ${
+                                !user.last_sign_in_at ? 'bg-gray-400' :
+                                Math.floor((Date.now() - new Date(user.last_sign_in_at).getTime()) / (1000 * 60 * 60 * 24)) === 0 ? 'bg-green-500' :
+                                Math.floor((Date.now() - new Date(user.last_sign_in_at).getTime()) / (1000 * 60 * 60 * 24)) <= 7 ? 'bg-blue-500' :
+                                Math.floor((Date.now() - new Date(user.last_sign_in_at).getTime()) / (1000 * 60 * 60 * 24)) <= 30 ? 'bg-yellow-500' :
+                                'bg-gray-400'
+                              }`} />
+                              {getStatusText(user.last_sign_in_at)}
                             </div>
-                          </div>
-                        </div>
-
-                        {/* Expandable Details */}
-                        <div className="mt-6 grid grid-cols-1 sm:grid-cols-3 gap-4 text-xs">
-                          <div className="bg-gradient-to-r from-gray-50 to-gray-100 rounded-lg p-3 border border-gray-200">
-                            <dt className="font-semibold text-gray-600 uppercase tracking-wide flex items-center">
-                              <svg className="w-3 h-3 mr-1.5 text-gray-500" fill="currentColor" viewBox="0 0 20 20">
-                                <path fillRule="evenodd" d="M10 2a4 4 0 00-4 4v1H5a1 1 0 00-.994.89l-1 9A1 1 0 004 18h12a1 1 0 00.994-1.11l-1-9A1 1 0 0015 7h-1V6a4 4 0 00-4-4zm2 5V6a2 2 0 10-4 0v1h4zm-6 3a1 1 0 112 0 1 1 0 01-2 0zm7-1a1 1 0 100 2 1 1 0 000-2z" clipRule="evenodd" />
-                              </svg>
-                              User ID
-                            </dt>
-                            <dd className="mt-2 text-gray-900 font-mono text-xs break-all bg-white rounded px-2 py-1 border">{user.id}</dd>
-                          </div>
-                          <div className="bg-gradient-to-r from-gray-50 to-gray-100 rounded-lg p-3 border border-gray-200">
-                            <dt className="font-semibold text-gray-600 uppercase tracking-wide flex items-center">
-                              <svg className="w-3 h-3 mr-1.5 text-gray-500" fill="currentColor" viewBox="0 0 20 20">
-                                <path fillRule="evenodd" d="M6 2a1 1 0 00-1 1v1H4a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V6a2 2 0 00-2-2h-1V3a1 1 0 10-2 0v1H7V3a1 1 0 00-1-1zm0 5a1 1 0 000 2h8a1 1 0 100-2H6z" clipRule="evenodd" />
-                              </svg>
-                              Created
-                            </dt>
-                            <dd className="mt-2 text-gray-900">{formatDate(user.created_at)}</dd>
-                          </div>
-                          <div className="bg-gradient-to-r from-gray-50 to-gray-100 rounded-lg p-3 border border-gray-200">
-                            <dt className="font-semibold text-gray-600 uppercase tracking-wide flex items-center">
-                              <svg className="w-3 h-3 mr-1.5 text-gray-500" fill="currentColor" viewBox="0 0 20 20">
-                                <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-12a1 1 0 10-2 0v4a1 1 0 00.293.707l2.828 2.829a1 1 0 101.415-1.415L11 9.586V6z" clipRule="evenodd" />
-                              </svg>
-                              Last Sign In
-                            </dt>
-                            <dd className="mt-2 text-gray-900">
-                              {user.last_sign_in_at ? formatDate(user.last_sign_in_at) : 'Never'}
-                            </dd>
-                          </div>
-                          {user.phone && (
-                            <div className="bg-gradient-to-r from-gray-50 to-gray-100 rounded-lg p-3 border border-gray-200">
-                              <dt className="font-semibold text-gray-600 uppercase tracking-wide flex items-center">
-                                <svg className="w-3 h-3 mr-1.5 text-gray-500" fill="currentColor" viewBox="0 0 20 20">
-                                  <path d="M2 3a1 1 0 011-1h2.153a1 1 0 01.986.836l.74 4.435a1 1 0 01-.54 1.06l-1.548.773a11.037 11.037 0 006.105 6.105l.774-1.548a1 1 0 011.059-.54l4.435.74a1 1 0 01.836.986V17a1 1 0 01-1 1h-2C7.82 18 2 12.18 2 5V3z" />
-                                </svg>
-                                Phone
-                              </dt>
-                              <dd className="mt-2 text-gray-900">{user.phone}</dd>
-                            </div>
+                          </td>
+                          {/* Actions (role change) */}
+                          {isAdmin && (
+                            <td className="px-6 py-4 whitespace-nowrap text-right text-xs">
+                              {user.id === currentUser?.id ? (
+                                <span className="text-gray-400">—</span>
+                              ) : (
+                                <button
+                                  onClick={() => openEditUserModal(user)}
+                                  className="inline-flex items-center px-3 py-1.5 rounded-md bg-white border border-gray-300 text-gray-700 hover:bg-gray-50 shadow-sm text-xs font-medium focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-1"
+                                >
+                                  <svg className="w-3.5 h-3.5 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5h2m-1-1v2m4.2 11.2L5 21l2.8-11.2L17 3l4 4-6.8 12.2z" />
+                                  </svg>
+                                  Edit
+                                </button>
+                              )}
+                            </td>
                           )}
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
               </div>
             )}
           </div>

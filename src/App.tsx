@@ -5,6 +5,7 @@ import CookDetailsModal from './components/CookDetailsModal'
 import { CreateEditIngredientModal } from './components/CreateEditIngredientModal'
 import { CreateEditMealModal } from './components/CreateEditMealModal'
 import { CreateUserModal } from './components/CreateUserModal'
+import { EditUserModal } from './components/EditUserModal'
 import { Layout } from './components/Layout'
 import { LoginForm } from './components/LoginForm'
 import { ProtectedRoute } from './components/ProtectedRoute'
@@ -24,6 +25,10 @@ function AppContent() {
     showCreateUserModal,
     closeCreateUserModal,
     onUserCreated,
+  showEditUserModal,
+  editingUser,
+  closeEditUserModal,
+  onUserUpdated,
     showCreateEditMealModal,
     editingMeal,
     closeCreateEditMealModal,
@@ -70,6 +75,13 @@ function AppContent() {
         isOpen={showCreateUserModal}
         onClose={closeCreateUserModal}
         onUserCreated={onUserCreated}
+      />
+
+      <EditUserModal
+        isOpen={showEditUserModal}
+        onClose={closeEditUserModal}
+        user={editingUser}
+        onUserUpdated={onUserUpdated}
       />
 
       <CreateEditMealModal
