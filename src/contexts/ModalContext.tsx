@@ -1,5 +1,5 @@
 import { createContext, useContext, useState } from 'react';
-import type { Cook, Ingredient, IngredientCategory, Meal } from '../types';
+import type { Cook, Ingredient, IngredientCategory, Meal, User } from '../types';
 
 interface ModalContextType {
   // User modals
@@ -7,6 +7,12 @@ interface ModalContextType {
   openCreateUserModal: () => void;
   closeCreateUserModal: () => void;
   onUserCreated: () => void;
+  // Edit user modal
+  showEditUserModal: boolean;
+  editingUser: User | null;
+  openEditUserModal: (user: User) => void;
+  closeEditUserModal: () => void;
+  onUserUpdated: (updated: Partial<User> & { id: string }) => void;
   
   // Meal curation modals
   showCreateEditMealModal: boolean;
@@ -45,6 +51,8 @@ export const useModal = () => {
 export const ModalProvider = ({ children }: { children: React.ReactNode }) => {
   // User modal state
   const [showCreateUserModal, setShowCreateUserModal] = useState(false);
+  const [showEditUserModal, setShowEditUserModal] = useState(false);
+  const [editingUser, setEditingUser] = useState<User | null>(null);
 
   // Meal modal state
   const [showCreateEditMealModal, setShowCreateEditMealModal] = useState(false);
@@ -65,6 +73,19 @@ export const ModalProvider = ({ children }: { children: React.ReactNode }) => {
   const onUserCreated = () => {
     // Trigger a refresh event that components can listen to
     window.dispatchEvent(new CustomEvent('userCreated'));
+  };
+
+  // Edit user modal functions
+  const openEditUserModal = (user: User) => {
+    setEditingUser(user);
+    setShowEditUserModal(true);
+  };
+  const closeEditUserModal = () => {
+    setShowEditUserModal(false);
+    setEditingUser(null);
+  };
+  const onUserUpdated = (updated: Partial<User> & { id: string }) => {
+    window.dispatchEvent(new CustomEvent('userUpdated', { detail: updated }));
   };
 
   // Meal modal functions
@@ -130,6 +151,11 @@ export const ModalProvider = ({ children }: { children: React.ReactNode }) => {
         openCreateUserModal,
         closeCreateUserModal,
         onUserCreated,
+  showEditUserModal,
+  editingUser,
+  openEditUserModal,
+  closeEditUserModal,
+  onUserUpdated,
         
         // Meal modals
         showCreateEditMealModal,

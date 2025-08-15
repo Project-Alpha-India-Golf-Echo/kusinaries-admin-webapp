@@ -319,6 +319,42 @@ export const updateUserRole = async (
   }
 };
 
+// Admin: update another user's account details (full name, email, role)
+export const updateUserAccount = async (
+  userId: string,
+  updates: { fullName?: string; email?: string; role?: UserRole }
+): Promise<{ success: boolean; error?: string }> => {
+  try {
+    const isAdmin = await isCurrentUserAdmin();
+    if (!isAdmin) return { success: false, error: 'Only admins can update users' };
+    if (!userId) return { success: false, error: 'User ID required' };
+
+    const payload: any = { updated_at: new Date().toISOString() };
+    if (updates.fullName !== undefined) payload.full_name = updates.fullName;
+    if (updates.role) payload.role = updates.role;
+    if (updates.email !== undefined) payload.email = updates.email; // assumes column exists in profiles
+
+    if (Object.keys(payload).length === 1) {
+      return { success: true }; // nothing to update besides timestamp
+    }
+
+    const { error } = await supabase
+      .from('profiles')
+      .update(payload)
+      .eq('id', userId);
+
+    if (error) {
+      console.error('Error updating user account (admin):', error);
+      return { success: false, error: error.message };
+    }
+
+    return { success: true };
+  } catch (e) {
+    console.error('Unexpected error in updateUserAccount:', e);
+    return { success: false, error: 'Failed to update user' };
+  }
+};
+
 // Scalable user fetch with pagination, filtering, searching
 export const fetchUsers = async (params: {
   page?: number;
