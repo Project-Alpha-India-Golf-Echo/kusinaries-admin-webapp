@@ -1,19 +1,19 @@
 
-import { useState, useEffect, useMemo } from 'react';
-import { Plus, Loader2, Utensils, Archive } from 'lucide-react';
-import { Button } from '../components/ui/button';
+import { Archive, Loader2, Plus, Utensils } from 'lucide-react';
+import { useEffect, useMemo, useState } from 'react';
 import { MealCard } from '../components/MealCard';
 import { MealFiltersComponent } from '../components/MealFiltersComponent';
+import { Button } from '../components/ui/button';
 import { useModal } from '../contexts/ModalContext';
 import { useDocumentTitle } from '../hooks/useDocumentTitle';
-import { 
-  getAllMeals, 
-  getArchivedMeals, 
-  getAllDietaryTags, 
-  archiveMeal, 
-  restoreMeal 
+import {
+  archiveMeal,
+  getAllDietaryTags,
+  getAllMeals,
+  getArchivedMeals,
+  restoreMeal
 } from '../lib/supabaseQueries';
-import type { Meal, MealFilters, DietaryTag } from '../types';
+import type { DietaryTag, Meal, MealFilters } from '../types';
 
 // Custom hook for debounced search
 const useDebounce = (value: string, delay: number) => {
@@ -156,8 +156,13 @@ export const MealCurationPage = () => {
     const handleMealSaved = () => {
       loadInitialData();
     };
+    const handleDietaryTagChanged = () => {
+      // Only refresh tags list to avoid flashing meals unnecessarily
+      refreshDietaryTags();
+    };
 
     window.addEventListener('mealSaved', handleMealSaved);
+    window.addEventListener('dietaryTagChanged', handleDietaryTagChanged);
     return () => window.removeEventListener('mealSaved', handleMealSaved);
   }, []);
 
@@ -190,6 +195,17 @@ export const MealCurationPage = () => {
       setError('An unexpected error occurred');
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const refreshDietaryTags = async () => {
+    try {
+      const tagsResult = await getAllDietaryTags();
+      if (tagsResult.success && tagsResult.data) {
+        setDietaryTags(tagsResult.data);
+      }
+    } catch (e) {
+      /* silently ignore */
     }
   };
 

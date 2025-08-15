@@ -1,10 +1,10 @@
-import React, { useState, useEffect } from 'react';
-import { Search, Plus, Package } from 'lucide-react';
-import { Button } from './ui/button';
-import { Input } from './ui/input';
+import { Package, Plus, Search } from 'lucide-react';
+import React, { useEffect, useState } from 'react';
 import { useModal } from '../contexts/ModalContext';
 import { getIngredientsByCategory } from '../lib/supabaseQueries';
 import type { Ingredient, IngredientCategory } from '../types';
+import { Button } from './ui/button';
+import { Input } from './ui/input';
 
 interface IngredientSectionProps {
   category: IngredientCategory;
@@ -57,6 +57,7 @@ export const IngredientSection: React.FC<IngredientSectionProps> = ({
   onQuantityChange
 }) => {
   const [ingredients, setIngredients] = useState<Ingredient[]>([]);
+  const [glowTab, setGlowTab] = useState<'Vegetables' | 'Fruits'>('Vegetables');
   const [searchTerm, setSearchTerm] = useState('');
   const [isLoading, setIsLoading] = useState(true);
 
@@ -71,7 +72,7 @@ export const IngredientSection: React.FC<IngredientSectionProps> = ({
 
   const loadIngredients = async () => {
     setIsLoading(true);
-    const result = await getIngredientsByCategory(category);
+    const result = await getIngredientsByCategory(category, category === 'Glow' ? glowTab : undefined);
     if (result.success && result.data) {
       setIngredients(result.data);
     }
@@ -80,16 +81,17 @@ export const IngredientSection: React.FC<IngredientSectionProps> = ({
 
   useEffect(() => {
     loadIngredients();
-  }, [category]);
+  }, [category, glowTab]);
 
   // Listen for ingredient added events
   useEffect(() => {
-    const handleIngredientAdded = () => {
-      loadIngredients();
+    const refresh = () => loadIngredients();
+    window.addEventListener('ingredientAdded', refresh);
+    window.addEventListener('ingredientSaved', refresh);
+    return () => {
+      window.removeEventListener('ingredientAdded', refresh);
+      window.removeEventListener('ingredientSaved', refresh);
     };
-
-    window.addEventListener('ingredientAdded', handleIngredientAdded);
-    return () => window.removeEventListener('ingredientAdded', handleIngredientAdded);
   }, []);
 
   const isIngredientSelected = (ingredientId: number) => {
@@ -111,6 +113,7 @@ export const IngredientSection: React.FC<IngredientSectionProps> = ({
           <p className="text-sm text-gray-600">{categoryInfo.description}</p>
         </div>
         <Button
+          type="button"
           onClick={() => openCreateIngredientModal(category)}
           className={`${categoryInfo.buttonColor} text-white`}
           size="sm"
@@ -130,6 +133,21 @@ export const IngredientSection: React.FC<IngredientSectionProps> = ({
             className="pl-10"
           />
         </div>
+        {category === 'Glow' && (
+          <div className="mt-3 flex gap-2">
+            {(['Vegetables','Fruits'] as const).map(tab => (
+              <Button
+                key={tab}
+                type="button"
+                size="sm"
+                variant={glowTab === tab ? 'default' : 'outline'}
+                onClick={() => setGlowTab(tab)}
+              >
+                {tab}
+              </Button>
+            ))}
+          </div>
+        )}
       </div>
 
       {isLoading ? (
@@ -142,6 +160,7 @@ export const IngredientSection: React.FC<IngredientSectionProps> = ({
           {searchTerm ? 'No ingredients found matching your search.' : 'No ingredients available.'}
           <br />
           <Button
+            type="button"
             onClick={() => openCreateIngredientModal(category)}
             variant="outline"
             size="sm"
@@ -187,6 +206,7 @@ export const IngredientSection: React.FC<IngredientSectionProps> = ({
                     className="w-20 text-sm"
                   />
                   <Button
+                    type="button"
                     size="sm"
                     variant="outline"
                     onClick={() => onIngredientRemove(ingredient.ingredient_id)}
@@ -197,6 +217,7 @@ export const IngredientSection: React.FC<IngredientSectionProps> = ({
                 </div>
               ) : (
                 <Button
+                  type="button"
                   size="sm"
                   onClick={() => onIngredientSelect(ingredient)}
                   className={categoryInfo.buttonColor}

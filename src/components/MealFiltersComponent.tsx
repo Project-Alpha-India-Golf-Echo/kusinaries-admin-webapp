@@ -1,9 +1,20 @@
-import React, { useState, useEffect } from 'react';
-import { Search, Filter, SortAsc, SortDesc, X } from 'lucide-react';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue, } from "@/components/ui/select";
+import { Filter, Plus, Search, SortAsc, SortDesc, X } from 'lucide-react';
+import React, { useEffect, useState } from 'react';
+import { createDietaryTag, disableDietaryTag } from '../lib/supabaseQueries';
+import type { DietaryTag, MealCategory, MealFilters } from '../types';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from './ui/alert-dialog';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
-import type { MealCategory, MealFilters, DietaryTag } from '../types';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue, } from "@/components/ui/select"
 
 
 interface MealFiltersComponentProps {
@@ -22,6 +33,13 @@ export const MealFiltersComponent: React.FC<MealFiltersComponentProps> = ({
   onToggleArchived
 }) => {
   const [localSearch, setLocalSearch] = useState(filters.search || '');
+  const [newTagName, setNewTagName] = useState('');
+  const [isCreatingTag, setIsCreatingTag] = useState(false);
+  const [tagError, setTagError] = useState('');
+  const [tagToDisable, setTagToDisable] = useState<DietaryTag | null>(null);
+  const [isDisableOpen, setIsDisableOpen] = useState(false);
+  const [isDisabling, setIsDisabling] = useState(false);
+  const [isAddOpen, setIsAddOpen] = useState(false);
 
   // Update local search when filters change (e.g., when cleared)
   useEffect(() => {
@@ -76,6 +94,49 @@ export const MealFiltersComponent: React.FC<MealFiltersComponentProps> = ({
   };
 
   const hasActiveFilters = filters.search || filters.category || (filters.dietary_tags && filters.dietary_tags.length > 0);
+
+  const handleAddDietaryTag = async () => {
+    const name = newTagName.trim();
+    if (!name) {
+      setTagError('Enter a tag name');
+      return;
+    }
+    setTagError('');
+    setIsCreatingTag(true);
+    try {
+      const result = await createDietaryTag(name);
+      if (result.success && result.data) {
+        // fire event so parent page reloads tags
+        window.dispatchEvent(new CustomEvent('dietaryTagChanged'));
+        setNewTagName('');
+        setIsAddOpen(false);
+      } else {
+        setTagError(result.error || 'Failed to add tag');
+      }
+    } finally {
+      setIsCreatingTag(false);
+    }
+  };
+
+  const openDisableDialog = (tag: DietaryTag) => {
+    setTagToDisable(tag);
+    setIsDisableOpen(true);
+  };
+
+  const confirmDisableTag = async () => {
+    if (!tagToDisable) return;
+    setIsDisabling(true);
+    const res = await disableDietaryTag(tagToDisable.tag_id);
+    if (res.success) {
+      if (filters.dietary_tags?.includes(tagToDisable.tag_id)) {
+        onFiltersChange({ ...filters, dietary_tags: filters.dietary_tags.filter(id => id !== tagToDisable.tag_id) });
+      }
+      window.dispatchEvent(new CustomEvent('dietaryTagChanged'));
+      setIsDisableOpen(false);
+      setTagToDisable(null);
+    }
+    setIsDisabling(false);
+  };
 
   return (
     <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-6 mb-6">
@@ -159,12 +220,12 @@ export const MealFiltersComponent: React.FC<MealFiltersComponentProps> = ({
               onValueChange={(value) => handleSortChange(value, filters.sort_order || 'desc')}
             >
               <SelectTrigger className="flex-1">
-              <SelectValue placeholder="Sort by" />
+                <SelectValue placeholder="Sort by" />
               </SelectTrigger>
               <SelectContent>
-              <SelectItem value="name">Name</SelectItem>
-              <SelectItem value="created_at">Date Created</SelectItem>
-              <SelectItem value="estimated_price">Price</SelectItem>
+                <SelectItem value="name">Name</SelectItem>
+                <SelectItem value="created_at">Date Created</SelectItem>
+                <SelectItem value="estimated_price">Price</SelectItem>
               </SelectContent>
             </Select>
             <Button
@@ -185,23 +246,43 @@ export const MealFiltersComponent: React.FC<MealFiltersComponentProps> = ({
       {/* Dietary Tags */}
       {dietaryTags.length > 0 && (
         <div className="mt-4">
-          <label className="block text-sm font-medium text-gray-700 mb-2">
-            Dietary Tags
-          </label>
+          <div className="flex items-cente mb-2 gap-2">
+            <label className="block text-sm font-medium text-gray-700">
+              Dietary Tags
+            </label>
+          </div>
           <div className="flex flex-wrap gap-2">
             {dietaryTags.map((tag) => (
-              <button
-                key={tag.tag_id}
-                type="button"
-                onClick={() => handleDietaryTagToggle(tag.tag_id)}
-                className={`px-3 py-1 rounded-full text-sm transition-colors ${filters.dietary_tags?.includes(tag.tag_id)
+              <div key={tag.tag_id} className="flex items-center">
+                <button
+                  type="button"
+                  onClick={() => handleDietaryTagToggle(tag.tag_id)}
+                  className={`flex gap-2 px-3 py-1 rounded-full text-sm transition-colors mr-1 ${filters.dietary_tags?.includes(tag.tag_id)
                     ? 'bg-green-600 text-white'
                     : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                  }`}
-              >
-                {tag.tag_name}
-              </button>
+                    }`}
+                >
+                  {tag.tag_name}
+
+                  <button
+                    type="button"
+                    onClick={() => openDisableDialog(tag)}
+                    className="text-gray-400 hover:text-red-600 transition-colors"
+                    aria-label="Disable tag"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                </button>
+
+              </div>
             ))}
+            <button
+              type="button"
+              onClick={() => { setIsAddOpen(true); setTagError(''); }}
+              className={`flex items-center gap-2 px-3 py-1 rounded-full text-sm transition-colors mr-1 bg-green-100 text-green-700 hover:bg-gray-200`}
+            >
+              <Plus className="w-4 h-4" /> Add new dietary tag
+            </button>
           </div>
         </div>
       )}
@@ -229,6 +310,57 @@ export const MealFiltersComponent: React.FC<MealFiltersComponentProps> = ({
           </div>
         </div>
       )}
+      <AlertDialog open={isDisableOpen} onOpenChange={setIsDisableOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Disable dietary tag</AlertDialogTitle>
+            <AlertDialogDescription>
+              {tagToDisable ? (
+                <>Are you sure you want to disable the tag <span className="font-medium">{tagToDisable.tag_name}</span>? It will be hidden from selection but remain historically associated with meals.</>
+              ) : 'Are you sure?'}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={isDisabling} onClick={() => setTagToDisable(null)}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              disabled={isDisabling}
+              onClick={(e) => { e.preventDefault(); confirmDisableTag(); }}
+              className="bg-red-600 hover:bg-red-700"
+            >
+              {isDisabling ? 'Disabling...' : 'Disable'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+      <AlertDialog open={isAddOpen} onOpenChange={setIsAddOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Add Dietary Tag</AlertDialogTitle>
+            <AlertDialogDescription>
+              Create a new dietary tag to classify meals (e.g., "Low Sodium", "Keto").
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <div className="space-y-2 mt-2">
+            <Input
+              autoFocus
+              value={newTagName}
+              onChange={(e) => setNewTagName(e.target.value)}
+              placeholder="Enter tag name"
+              onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); handleAddDietaryTag(); } }}
+            />
+            {tagError && <p className="text-xs text-red-600">{tagError}</p>}
+          </div>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={isCreatingTag} onClick={() => { setNewTagName(''); setTagError(''); }}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              disabled={isCreatingTag}
+              onClick={(e) => { e.preventDefault(); handleAddDietaryTag(); }}
+            >
+              {isCreatingTag ? 'Adding...' : 'Add Tag'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 };

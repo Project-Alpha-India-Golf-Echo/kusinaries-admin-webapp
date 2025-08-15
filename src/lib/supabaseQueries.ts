@@ -388,11 +388,11 @@ export const fetchUsers = async (params: {
 // ============================================
 
 import type {
-  CreateMealData,
-  DietaryTag,
-  Ingredient,
-  IngredientCategory,
-  Meal
+    CreateMealData,
+    DietaryTag,
+    Ingredient,
+    IngredientCategory,
+    Meal
 } from '../types';
 
 // ===== INGREDIENT QUERIES =====
@@ -430,14 +430,19 @@ export const getAllIngredients = async (): Promise<{ success: boolean; data?: In
 };
 
 // Get ingredients by category (only active/non-archived by default)
-export const getIngredientsByCategory = async (category: IngredientCategory): Promise<{ success: boolean; data?: Ingredient[]; error?: string }> => {
+export const getIngredientsByCategory = async (category: IngredientCategory, glowSubcategory?: 'Vegetables' | 'Fruits'): Promise<{ success: boolean; data?: Ingredient[]; error?: string }> => {
   try {
-    const { data, error } = await supabase
+    let query = supabase
       .from('ingredients')
       .select('*')
       .eq('category', category)
-      .eq('is_disabled', false)
-      .order('name');
+      .eq('is_disabled', false);
+
+    if (category === 'Glow' && glowSubcategory) {
+      query = query.eq('glow_subcategory', glowSubcategory);
+    }
+
+    const { data, error } = await query.order('name');
 
     if (error) {
       console.error('Error fetching ingredients by category:', error);
@@ -713,13 +718,14 @@ export const getMealById = async (id: string): Promise<{ success: boolean; data?
 // Create a new meal
 export const createMeal = async (mealData: CreateMealData): Promise<{ success: boolean; error?: string }> => {
   try {
-    const { data, error } = await supabase
+    // Step 1: Insert meal
+    const { data: mealInsert, error: mealError } = await supabase
       .from('meals')
       .insert([
         {
           name: mealData.name,
           category: mealData.category,
-          recipe: mealData.recipe,
+            recipe: mealData.recipe,
           image_url: mealData.image_url,
           is_disabled: false,
           created_at: new Date().toISOString(),
@@ -729,21 +735,52 @@ export const createMeal = async (mealData: CreateMealData): Promise<{ success: b
       .select('meal_id, name')
       .single();
 
-    if (error) {
-      console.error('Error creating meal:', error);
-      return { success: false, error: error.message };
+    if (mealError || !mealInsert) {
+      console.error('Error creating meal:', mealError);
+      return { success: false, error: mealError?.message || 'Failed to create meal' };
     }
 
-    // Log the activity
-    if (data) {
-      await createActivityLogEntry(
-        'meal',
-        data.meal_id,
-        data.name,
-        'created',
-        { category: mealData.category, recipe: mealData.recipe }
-      );
+    const mealId = mealInsert.meal_id;
+
+    // Step 2: Insert ingredients if any
+    if (mealData.ingredients && mealData.ingredients.length > 0) {
+      const ingredientRows = mealData.ingredients.map(i => ({
+        meal_id: mealId,
+        ingredient_id: i.ingredient_id,
+        quantity: i.quantity
+      }));
+      const { error: ingError } = await supabase
+        .from('meal_ingredients')
+        .insert(ingredientRows);
+      if (ingError) {
+        console.error('Error inserting meal ingredients:', ingError);
+        return { success: false, error: 'Meal created but failed to attach ingredients' };
+      }
     }
+
+    // Step 3: Insert dietary tags if any
+    if (mealData.dietary_tag_ids && mealData.dietary_tag_ids.length > 0) {
+      const tagRows = mealData.dietary_tag_ids.map(tagId => ({
+        meal_id: mealId,
+        tag_id: tagId
+      }));
+      const { error: tagError } = await supabase
+        .from('meal_dietary_tags')
+        .insert(tagRows);
+      if (tagError) {
+        console.error('Error inserting meal dietary tags:', tagError);
+        return { success: false, error: 'Meal created but failed to attach dietary tags' };
+      }
+    }
+
+    // Step 4: Log activity
+    await createActivityLogEntry(
+      'meal',
+      mealId,
+      mealInsert.name,
+      'created',
+      { category: mealData.category, recipe: mealData.recipe }
+    );
 
     return { success: true };
   } catch (error) {
@@ -816,8 +853,9 @@ export const getAllDietaryTags = async (): Promise<{ success: boolean; data?: Di
   try {
     const { data, error } = await supabase
       .from('dietary_tags')
-      .select('*')
-      .order('tag_name');
+  .select('*')
+  .eq('is_disabled', false)
+  .order('tag_name');
 
     if (error) {
       console.error('Error getting dietary tags:', error);
@@ -828,6 +866,48 @@ export const getAllDietaryTags = async (): Promise<{ success: boolean; data?: Di
   } catch (error) {
     console.error('Error in getAllDietaryTags:', error);
     return { success: false, error: 'Failed to get dietary tags' };
+  }
+};
+
+// Create a dietary tag
+export const createDietaryTag = async (tag_name: string): Promise<{ success: boolean; data?: DietaryTag; error?: string }> => {
+  try {
+    const cleanName = tag_name.trim();
+    if (!cleanName) {
+      return { success: false, error: 'Tag name is required' };
+    }
+    const { data, error } = await supabase
+      .from('dietary_tags')
+      .insert({ tag_name: cleanName })
+      .select('*')
+      .single();
+    if (error) {
+      if (error.message && error.message.toLowerCase().includes('duplicate')) {
+        return { success: false, error: 'Tag with that name already exists' };
+      }
+      return { success: false, error: error.message };
+    }
+    return { success: true, data: data as DietaryTag };
+  } catch (error) {
+    console.error('Error in createDietaryTag:', error);
+    return { success: false, error: 'Failed to create dietary tag' };
+  }
+};
+
+// Soft delete (disable) a dietary tag
+export const disableDietaryTag = async (tag_id: number): Promise<{ success: boolean; error?: string }> => {
+  try {
+    const { error } = await supabase
+      .from('dietary_tags')
+      .update({ is_disabled: true })
+      .eq('tag_id', tag_id);
+    if (error) {
+      return { success: false, error: error.message };
+    }
+    return { success: true };
+  } catch (error) {
+    console.error('Error in disableDietaryTag:', error);
+    return { success: false, error: 'Failed to disable dietary tag' };
   }
 };
 
