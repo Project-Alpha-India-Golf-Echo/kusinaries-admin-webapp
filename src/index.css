@@ -1,14 +1,17 @@
 @import "tailwindcss";
 @import "tw-animate-css";
 @import "./animations.css";
-@import url('https://fonts.googleapis.com/css2?family=Gochi+Hand&display=swap');
+/* Google Font import moved to index.html to avoid PostCSS ordering errors */
 
 
 @custom-variant dark (&:is(.dark *));
 
 @font-face {
   font-family: 'Gochi Hand';
-  src: url('../src/assets/fonts/GochiHand-Regular.ttf') ;
+  src: url('./assets/fonts/GochiHand-Regular.ttf') format('truetype');
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
 }
 
 :root {

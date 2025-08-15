@@ -32,11 +32,13 @@ export interface Ingredient {
   price_per_kilo: number;
   is_disabled: boolean;
   created_at: string;
+  glow_subcategory?: 'Vegetables' | 'Fruits' | null; // Only for category 'Glow'
 }
 
 export interface DietaryTag {
   tag_id: number;
   tag_name: string;
+  is_disabled?: boolean;
 }
 
 export interface MealIngredient {

@@ -1,17 +1,17 @@
-import { useState, useEffect, useCallback } from 'react';
-import { Upload, X, Loader2 } from 'lucide-react';
 import {
   FileUpload, FileUploadDropzone, FileUploadItem, FileUploadItemDelete,
   FileUploadItemMetadata, FileUploadItemPreview, FileUploadList, FileUploadTrigger,
 } from "@/components/ui/file-upload";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Loader2, Upload, X } from 'lucide-react';
+import { useCallback, useEffect, useState } from 'react';
 import { toast } from "sonner";
+import { updateImageInStorage, uploadImageToStorage, validateImageFileForStorage } from '../lib/storageUtils';
+import { createIngredient, updateIngredient } from '../lib/supabaseQueries';
+import type { Ingredient, IngredientCategory } from '../types';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
 import { Label } from './ui/label';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { createIngredient, updateIngredient } from '../lib/supabaseQueries';
-import { uploadImageToStorage, updateImageInStorage, validateImageFileForStorage } from '../lib/storageUtils';
-import type { Ingredient, IngredientCategory } from '../types';
 
 interface CreateEditIngredientModalProps {
   isOpen: boolean;
@@ -37,6 +37,7 @@ export const CreateEditIngredientModal: React.FC<CreateEditIngredientModalProps>
   const [isLoading, setIsLoading] = useState(false);
 
   const isEditing = !!editingIngredient;
+  const isCategoryLocked = !!initialCategory && !isEditing;
 
   // Initialize form data when modal opens or editing ingredient changes
   useEffect(() => {
@@ -189,9 +190,15 @@ export const CreateEditIngredientModal: React.FC<CreateEditIngredientModalProps>
               value={formData.category}
               onValueChange={(value) => handleInputChange('category', value as IngredientCategory)}
               required
+              disabled={isCategoryLocked}
             >
-              <SelectTrigger className="w-full">
-                <SelectValue placeholder="Select category" />
+              <SelectTrigger className="w-full disabled:opacity-70 disabled:cursor-not-allowed">
+                
+                {isCategoryLocked ? (
+                  <SelectValue placeholder={`${initialCategory} Foods`} />
+                ) : (
+                  <SelectValue placeholder="Select category" />
+                )}
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="Go">Go (Energy - Carbohydrates)</SelectItem>

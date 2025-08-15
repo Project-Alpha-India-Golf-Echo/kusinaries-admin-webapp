@@ -138,14 +138,24 @@ export const CreateEditMealModal: React.FC<CreateEditMealModalProps> = ({
   // Derived ingredient categories present
   const ingredientCategoryCoverage = useMemo(() => {
     const categories = new Set<string>();
+    // track glow subcategories
+    let hasGlowVegetable = false;
+    let hasGlowFruit = false;
     selectedIngredients.forEach(sel => {
       const ing = allIngredients.find(i => i.ingredient_id === sel.ingredient_id);
-      if (ing) categories.add(ing.category);
+      if (ing) {
+        categories.add(ing.category);
+        if (ing.category === 'Glow') {
+          if (ing.glow_subcategory === 'Vegetables') hasGlowVegetable = true;
+          if (ing.glow_subcategory === 'Fruits') hasGlowFruit = true;
+        }
+      }
     });
-    return categories;
+    return { categories, hasGlowVegetable, hasGlowFruit };
   }, [selectedIngredients, allIngredients]);
 
-  const allCategoriesPresent = ['Go', 'Grow', 'Glow'].every(cat => ingredientCategoryCoverage.has(cat));
+  const allCategoriesPresent = ['Go', 'Grow', 'Glow'].every(cat => ingredientCategoryCoverage.categories.has(cat));
+  const glowSubcategoriesPresent = ingredientCategoryCoverage.hasGlowVegetable && ingredientCategoryCoverage.hasGlowFruit;
 
   // Validate quantities format: number with optional decimal + optional unit
   const quantityPattern = /^(?=\S)(?=.*\d)(?:\d+\.?\d*|\d*\.\d+)?\s*(g|kg|cup|cups|piece|pieces|tbsp|tsp)?$/i;
@@ -155,7 +165,8 @@ export const CreateEditMealModal: React.FC<CreateEditMealModalProps> = ({
     if (!formData.name.trim()) errors.push('Meal name is required');
     if (!formData.category) errors.push('Category is required');
     if (selectedIngredients.length === 0) errors.push('At least one ingredient is required');
-    if (!allCategoriesPresent) errors.push('Include at least one Go, one Grow, and one Glow ingredient');
+  if (!allCategoriesPresent) errors.push('Include at least one Go, one Grow, and one Glow ingredient');
+  if (allCategoriesPresent && !glowSubcategoriesPresent) errors.push('For Glow, include at least one Vegetable and one Fruit');
     const missingQty = selectedIngredients.filter(i => !i.quantity.trim());
     if (missingQty.length) errors.push('Provide quantity for every selected ingredient');
     const badFormat = selectedIngredients.filter(i => i.quantity && !quantityPattern.test(i.quantity.trim()));
@@ -163,7 +174,7 @@ export const CreateEditMealModal: React.FC<CreateEditMealModalProps> = ({
     return errors;
   };
 
-  const canSubmit = useMemo(() => computeValidationErrors().length === 0, [formData, selectedIngredients, allCategoriesPresent]);
+  const canSubmit = useMemo(() => computeValidationErrors().length === 0, [formData, selectedIngredients, allCategoriesPresent, glowSubcategoriesPresent]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
