@@ -469,6 +469,7 @@ export const getIngredientsByCategory = async (category: IngredientCategory, glo
 export const createIngredient = async (ingredientData: {
   name: string;
   category: IngredientCategory;
+  glow_subcategory?: 'Vegetables' | 'Fruits' | null;
   image_url?: string;
   price_per_kilo: number;
 }): Promise<{ success: boolean; error?: string }> => {
@@ -479,6 +480,7 @@ export const createIngredient = async (ingredientData: {
         {
           name: ingredientData.name,
           category: ingredientData.category,
+          glow_subcategory: ingredientData.category === 'Glow' ? ingredientData.glow_subcategory : null,
           image_url: ingredientData.image_url,
           price_per_kilo: ingredientData.price_per_kilo,
           created_at: new Date().toISOString()
@@ -514,13 +516,19 @@ export const createIngredient = async (ingredientData: {
 export const updateIngredient = async (id: number, ingredientData: {
   name?: string;
   category?: IngredientCategory;
+  glow_subcategory?: 'Vegetables' | 'Fruits' | null;
   image_url?: string;
   price_per_kilo?: number;
 }): Promise<{ success: boolean; error?: string }> => {
   try {
+    // Normalize glow_subcategory: only keep if category is Glow (if provided)
+    const updatePayload: any = { ...ingredientData };
+    if (updatePayload.category && updatePayload.category !== 'Glow') {
+      updatePayload.glow_subcategory = null;
+    }
     const { data, error } = await supabase
       .from('ingredients')
-      .update(ingredientData)
+      .update(updatePayload)
       .eq('ingredient_id', id)
       .select('ingredient_id, name')
       .single();
