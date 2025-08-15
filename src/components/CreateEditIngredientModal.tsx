@@ -31,6 +31,7 @@ export const CreateEditIngredientModal: React.FC<CreateEditIngredientModalProps>
   const [formData, setFormData] = useState({
     name: '',
     category: 'Go' as IngredientCategory,
+    glow_subcategory: '' as '' | 'Vegetables' | 'Fruits',
     price_per_kilo: ''
   });
   const [selectedImage, setSelectedImage] = useState<File | null>(null);
@@ -46,12 +47,14 @@ export const CreateEditIngredientModal: React.FC<CreateEditIngredientModalProps>
         setFormData({
           name: editingIngredient.name,
           category: editingIngredient.category,
+          glow_subcategory: editingIngredient.glow_subcategory || '',
           price_per_kilo: editingIngredient.price_per_kilo.toString()
         });
       } else {
         setFormData({
           name: '',
           category: initialCategory || 'Go',
+          glow_subcategory: '',
           price_per_kilo: ''
         });
       }
@@ -71,6 +74,17 @@ export const CreateEditIngredientModal: React.FC<CreateEditIngredientModalProps>
       }
 
       let imageUrl = isEditing ? editingIngredient?.image_url : undefined;
+
+      // Always use locked category if present and not editing
+      const categoryToSend = isCategoryLocked ? initialCategory : formData.category;
+      if (!categoryToSend) {
+        toast.error('Category is required');
+        return;
+      }
+      if (categoryToSend === 'Glow' && !formData.glow_subcategory) {
+        toast.error('Please select a Glow subcategory (Vegetables or Fruits)');
+        return;
+      }
 
       // Handle image upload/update if a new image was selected
       if (selectedImage) {
@@ -106,21 +120,23 @@ export const CreateEditIngredientModal: React.FC<CreateEditIngredientModalProps>
       if (isEditing) {
         result = await updateIngredient(editingIngredient!.ingredient_id, {
           name: formData.name.trim(),
-          category: formData.category,
+          category: categoryToSend,
+          glow_subcategory: categoryToSend === 'Glow' ? (formData.glow_subcategory || null) : null,
           price_per_kilo: pricePerKilo,
           image_url: imageUrl
         });
       } else {
         result = await createIngredient({
           name: formData.name.trim(),
-          category: formData.category,
+          category: categoryToSend,
+          glow_subcategory: categoryToSend === 'Glow' ? (formData.glow_subcategory || null) : null,
           price_per_kilo: pricePerKilo,
           image_url: imageUrl
         });
       }
 
       if (result.success) {
-        setFormData({ name: '', category: 'Go', price_per_kilo: '' });
+  setFormData({ name: '', category: 'Go', glow_subcategory: '', price_per_kilo: '' });
         setSelectedImage(null);
         toast.success(`Ingredient ${isEditing ? 'updated' : 'created'} successfully!`);
         onIngredientSaved();
@@ -207,6 +223,24 @@ export const CreateEditIngredientModal: React.FC<CreateEditIngredientModalProps>
               </SelectContent>
             </Select>
           </div>
+          {formData.category === 'Glow' && (
+            <div className='space-y-2'>
+              <Label htmlFor="glow_subcategory">Glow Subcategory *</Label>
+              <Select
+                value={formData.glow_subcategory || ''}
+                onValueChange={(value) => handleInputChange('glow_subcategory', value)}
+                required
+              >
+                <SelectTrigger className="w-full">
+                  <SelectValue placeholder="Select subcategory" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="Vegetables">Vegetables</SelectItem>
+                  <SelectItem value="Fruits">Fruits</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          )}
 
           <div className='space-y-2'>
             <Label htmlFor="price">Price per Kilo (₱) *</Label>
