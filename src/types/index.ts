@@ -63,6 +63,8 @@ export interface Meal {
   meal_ingredients?: MealIngredient[];
   dietary_tags?: DietaryTag[];
   estimated_price?: number; // Calculated field
+  ai_generated?: boolean; // Marks AI-seeded meals for safe cleanup
+  ai_batch_id?: string | null; // UUID grouping for batch operations
 }
 
 export interface CreateMealData {
@@ -75,6 +77,8 @@ export interface CreateMealData {
     quantity: string;
   }[];
   dietary_tag_ids: number[];
+  ai_generated?: boolean; // optional when creating via script
+  ai_batch_id?: string; // optional batch grouping
 }
 
 export interface MealFilters {

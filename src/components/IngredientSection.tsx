@@ -1,4 +1,4 @@
-import { Package, Plus, Search } from 'lucide-react';
+import { Check, Package, Plus, Search, X as XIcon } from 'lucide-react';
 import React, { useEffect, useState } from 'react';
 import { useModal } from '../contexts/ModalContext';
 import { getIngredientsByCategory } from '../lib/supabaseQueries';
@@ -10,7 +10,6 @@ interface IngredientSectionProps {
   category: IngredientCategory;
   selectedIngredients: { ingredient_id: number; quantity: string }[];
   onIngredientSelect: (ingredient: Ingredient) => void;
-  onIngredientRemove: (ingredientId: number) => void;
   onQuantityChange: (ingredientId: number, quantity: string) => void;
 }
 
@@ -53,13 +52,14 @@ export const IngredientSection: React.FC<IngredientSectionProps> = ({
   category,
   selectedIngredients,
   onIngredientSelect,
-  onIngredientRemove,
   onQuantityChange
 }) => {
   const [ingredients, setIngredients] = useState<Ingredient[]>([]);
   const [glowTab, setGlowTab] = useState<'Vegetables' | 'Fruits'>('Vegetables');
   const [searchTerm, setSearchTerm] = useState('');
   const [isLoading, setIsLoading] = useState(true);
+  // Track ingredients currently being added (pending confirmation) with local quantity drafts
+  const [pendingAdds, setPendingAdds] = useState<Record<number, string>>({});
 
   // Get modal functions from context
   const { openCreateIngredientModal } = useModal();
@@ -103,6 +103,34 @@ export const IngredientSection: React.FC<IngredientSectionProps> = ({
     return selected?.quantity || '';
   };
 
+  const quantityPattern = /^(?=\S)(?=.*\d)(?:\d+\.?\d*|\d*\.\d+)?\s*(g|kg|cup|cups|piece|pieces|tbsp|tsp)?$/i;
+
+  const startPendingAdd = (ingredientId: number) => {
+    setPendingAdds(prev => ({ ...prev, [ingredientId]: '' }));
+  };
+
+  const cancelPendingAdd = (ingredientId: number) => {
+    setPendingAdds(prev => {
+      const clone = { ...prev };
+      delete clone[ingredientId];
+      return clone;
+    });
+  };
+
+  const updatePendingQuantity = (ingredientId: number, quantity: string) => {
+    setPendingAdds(prev => ({ ...prev, [ingredientId]: quantity }));
+  };
+
+  const confirmAdd = (ingredient: Ingredient) => {
+    const draft = pendingAdds[ingredient.ingredient_id];
+    if (!draft || !quantityPattern.test(draft.trim())) return;
+    if (!isIngredientSelected(ingredient.ingredient_id)) {
+      onIngredientSelect(ingredient);
+    }
+    onQuantityChange(ingredient.ingredient_id, draft.trim());
+    cancelPendingAdd(ingredient.ingredient_id);
+  };
+
   return (
     <div className={`border rounded-xl ${categoryInfo.borderColor} ${categoryInfo.bgColor} p-6`}>
       <div className="flex items-center justify-between mb-4">
@@ -135,7 +163,7 @@ export const IngredientSection: React.FC<IngredientSectionProps> = ({
         </div>
         {category === 'Glow' && (
           <div className="mt-3 flex gap-2">
-            {(['Vegetables','Fruits'] as const).map(tab => (
+            {(['Vegetables', 'Fruits'] as const).map(tab => (
               <Button
                 key={tab}
                 type="button"
@@ -171,62 +199,117 @@ export const IngredientSection: React.FC<IngredientSectionProps> = ({
         </div>
       ) : (
         <div className="space-y-2 max-h-64 overflow-y-auto">
-          {filteredIngredients.map((ingredient) => (
-            <div
-              key={ingredient.ingredient_id}
-              className={`flex items-center justify-between p-3 bg-white rounded-lg border transition-colors ${
-                isIngredientSelected(ingredient.ingredient_id) ? 'border-blue-300 bg-blue-50' : 'border-gray-200 hover:border-gray-300'
-              }`}
-            >
-              <div className="flex items-center space-x-3 flex-1">
-                <div className="w-10 h-10 bg-gray-100 rounded-lg flex items-center justify-center">
-                  {ingredient.image_url ? (
-                    <img
-                      src={ingredient.image_url}
-                      alt={ingredient.name}
-                      className="w-8 h-8 object-cover rounded"
-                    />
-                  ) : (
-                    <Package className="w-5 h-5 text-gray-400" />
-                  )}
+          {filteredIngredients.map((ingredient) => {
+            const selected = selectedIngredients.find(si => si.ingredient_id === ingredient.ingredient_id);
+            const hasQuantity = selected && selected.quantity.trim();
+            const pending = pendingAdds[ingredient.ingredient_id] !== undefined && !hasQuantity;
+            const pendingQty = pendingAdds[ingredient.ingredient_id] || '';
+            return (
+              <div
+                key={ingredient.ingredient_id}
+                className={`relative flex flex-col p-4 bg-white rounded-xl border-2 transition-all duration-200 hover:shadow-md ${
+                  pending ? 'border-amber-300 bg-gradient-to-r from-amber-50 to-orange-50 shadow-lg' : 
+                  isIngredientSelected(ingredient.ingredient_id) ? (hasQuantity ? 'border-blue-400 bg-gradient-to-r from-blue-50 to-indigo-50 shadow-sm' : 'border-amber-300 bg-amber-50') : 
+                  'border-gray-200 hover:border-gray-300 hover:bg-gray-50'
+                }`}
+              >
+                {/* Top section: Image and Info */}
+                <div className="flex items-center space-x-3 mb-3">
+                  <div className="w-12 h-12 bg-gradient-to-br from-gray-100 to-gray-200 rounded-xl flex items-center justify-center shadow-inner flex-shrink-0">
+                    {ingredient.image_url ? (
+                      <img
+                        src={ingredient.image_url}
+                        alt={ingredient.name}
+                        className="w-10 h-10 object-cover rounded-lg"
+                      />
+                    ) : (
+                      <Package className="w-6 h-6 text-gray-400" />
+                    )}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <h4 className="font-semibold text-sm text-gray-900 mb-0.5" title={ingredient.name}>{ingredient.name}</h4>
+                    <p className="text-xs text-gray-600 font-medium">₱{ingredient.price_per_kilo.toFixed(2)}/kg</p>
+                  </div>
                 </div>
-                <div className="flex-1">
-                  <h4 className="font-medium text-gray-900">{ingredient.name}</h4>
-                  <p className="text-sm text-gray-500">₱{ingredient.price_per_kilo.toFixed(2)}/kg</p>
-                </div>
-              </div>
 
-              {isIngredientSelected(ingredient.ingredient_id) ? (
-                <div className="flex items-center space-x-2">
-                  <Input
-                    type="text"
-                    placeholder="250g"
-                    value={getIngredientQuantity(ingredient.ingredient_id)}
-                    onChange={(e) => onQuantityChange(ingredient.ingredient_id, e.target.value)}
-                    className="w-20 text-sm"
-                  />
+                {/* Status messages */}
+                {pending && (
+                  <p className="text-xs text-amber-700 mb-3 font-medium animate-pulse">Enter quantity & confirm</p>
+                )}
+                {selected && hasQuantity && (
+                  <p className="text-[11px] text-blue-700 mb-3 font-medium">✓ Added: {selected.quantity}</p>
+                )}
+
+                {/* Bottom section: Actions */}
+                {/* Bottom section: Actions */}
+                {pending ? (
+                  <div className="flex items-center space-x-2">
+                    <div className="relative flex-1">
+                      <Input
+                        type="text"
+                        autoFocus
+                        placeholder="250g"
+                        value={pendingQty}
+                        onChange={(e) => updatePendingQuantity(ingredient.ingredient_id, e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter' && pendingQty.trim() && quantityPattern.test(pendingQty.trim())) {
+                            confirmAdd(ingredient);
+                          } else if (e.key === 'Escape') {
+                            cancelPendingAdd(ingredient.ingredient_id);
+                          }
+                        }}
+                        className="w-full text-sm border-2 border-amber-300 focus:border-amber-500 focus:ring-amber-200"
+                      />
+                      {!quantityPattern.test(pendingQty.trim()) && pendingQty.trim() && (
+                        <div className="absolute -bottom-5 left-0 text-[10px] text-red-500 whitespace-nowrap">Invalid format</div>
+                      )}
+                    </div>
+                    <Button
+                      type="button"
+                      size="sm"
+                      onClick={() => confirmAdd(ingredient)}
+                      disabled={!pendingQty.trim() || !quantityPattern.test(pendingQty.trim())}
+                      className="bg-green-600 hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed shadow-sm"
+                    >
+                      <Check className="w-4 h-4" />
+                    </Button>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      onClick={() => cancelPendingAdd(ingredient.ingredient_id)}
+                      className="text-red-600 hover:text-red-700 hover:bg-red-50 border-red-200 hover:border-red-300 shadow-sm"
+                    >
+                      <XIcon className="w-4 h-4" />
+                    </Button>
+                  </div>
+                ) : selected ? (
+                  <div className="flex items-center space-x-3">
+                    <Input
+                      type="text"
+                      placeholder="250g"
+                      value={getIngredientQuantity(ingredient.ingredient_id)}
+                      onChange={(e) => onQuantityChange(ingredient.ingredient_id, e.target.value)}
+                      className="flex-1 text-sm border-blue-300 focus:border-blue-500 focus:ring-blue-200"
+                    />
+                    <span className="inline-flex items-center gap-1 text-[10px] px-2.5 py-1.5 rounded-full bg-blue-600 text-white font-bold uppercase tracking-wide shadow-sm whitespace-nowrap">
+                      <Check className="w-3 h-3" />
+                      Added
+                    </span>
+                  </div>
+                ) : (
                   <Button
                     type="button"
                     size="sm"
-                    variant="outline"
-                    onClick={() => onIngredientRemove(ingredient.ingredient_id)}
-                    className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                    onClick={() => startPendingAdd(ingredient.ingredient_id)}
+                    className={`${categoryInfo.buttonColor} text-white shadow-sm hover:shadow-md transition-shadow px-4 py-2 w-full`}
                   >
-                    X
+                    Add
                   </Button>
-                </div>
-              ) : (
-                <Button
-                  type="button"
-                  size="sm"
-                  onClick={() => onIngredientSelect(ingredient)}
-                  className={categoryInfo.buttonColor}
-                >
-                  Add
-                </Button>
-              )}
-            </div>
-          ))}
+                )}
+              </div>
+            );
+          })}
         </div>
       )}
     </div>
