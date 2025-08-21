@@ -166,9 +166,7 @@ export const CondimentManagementModal: React.FC<CondimentManagementModalProps> =
               <option value="g">grams</option>
               <option value="tbsp">tbsp</option>
               <option value="tsp">tsp</option>
-              <option value="piece">piece</option>
-              <option value="sachet">sachet</option>
-              <option value="bottle">bottle</option>
+              {/* Removed piece & bottle for precision */}
             </select>
 
             {/* Show Archived Toggle */}

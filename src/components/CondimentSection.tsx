@@ -114,62 +114,53 @@ export const CondimentSection: React.FC<CondimentSectionProps> = ({
     disabled?: boolean;
   }> = ({ value, onChange, unitType, className = "", disabled = false }) => {
     const parseQuantity = (quantityString: string) => {
-      if (!quantityString.trim()) return { amount: '', unit: unitType };
-      
+      if (!quantityString.trim()) return { amt: '', unit: unitType };
       const match = quantityString.trim().match(/^(\d*\.?\d+)\s*(.*)$/);
       if (match) {
-        return { amount: match[1], unit: match[2].trim() || unitType };
+        return { amt: match[1], unit: (match[2].trim() || unitType) };
       }
-      return { amount: '', unit: unitType };
+      return { amt: '', unit: unitType };
     };
+    const initial = parseQuantity(value);
+    const [localAmount, setLocalAmount] = React.useState(initial.amt);
+    const [localUnit, setLocalUnit] = React.useState(initial.unit);
 
-    const { amount, unit } = parseQuantity(value);
+    // Sync when external value changes (e.g., programmatic updates)
+    React.useEffect(() => {
+      const parsed = parseQuantity(value);
+      setLocalAmount(parsed.amt);
+      setLocalUnit(parsed.unit);
+    }, [value]);
+
+    const commit = (amt = localAmount, unit = localUnit) => {
+      if (!amt) {
+        onChange('');
+      } else {
+        onChange(`${amt} ${unit}`.trim());
+      }
+    };
 
     const handleAmountChange = (newAmount: string) => {
       if (newAmount === '' || /^\d*\.?\d*$/.test(newAmount)) {
-        const newValue = newAmount && unit ? `${newAmount}${unit}` : newAmount;
-        onChange(newValue);
+        setLocalAmount(newAmount);
       }
     };
+    const handleAmountBlur = () => commit();
 
     const handleUnitChange = (newUnit: string) => {
-      const newValue = amount ? `${amount}${newUnit}` : '';
-      onChange(newValue);
+      setLocalUnit(newUnit);
+      commit(localAmount, newUnit);
     };
 
     // Get appropriate units for this condiment type
-    const getUnitsForType = (type: string) => {
-      switch (type) {
-        case 'ml':
-          return [
-            { value: 'ml', label: 'ml' },
-            { value: 'tbsp', label: 'tbsp' },
-            { value: 'tsp', label: 'tsp' }
-          ];
-        case 'g':
-          return [
-            { value: 'g', label: 'grams' },
-            { value: 'tsp', label: 'tsp' },
-            { value: 'tbsp', label: 'tbsp' }
-          ];
-        case 'piece':
-          return [
-            { value: 'piece', label: 'piece' },
-            { value: 'pieces', label: 'pieces' }
-          ];
-        case 'sachet':
-          return [
-            { value: 'sachet', label: 'sachet' },
-            { value: 'sachets', label: 'sachets' }
-          ];
-        case 'bottle':
-          return [
-            { value: 'bottle', label: 'bottle' },
-            { value: 'bottles', label: 'bottles' }
-          ];
-        default:
-          return [{ value: type, label: type }];
-      }
+    // Provide a universal list of accepted precise units regardless of base pricing unit.
+    const getUnitsForType = (_type: string) => {
+      return [
+        { value: 'ml', label: 'ml' },
+        { value: 'g', label: 'g' },
+        { value: 'tbsp', label: 'tbsp' },
+        { value: 'tsp', label: 'tsp' }
+      ];
     };
 
     const availableUnits = getUnitsForType(unitType);
@@ -178,14 +169,15 @@ export const CondimentSection: React.FC<CondimentSectionProps> = ({
       <div className={`flex gap-1 ${className}`}>
         <Input
           type="text"
-          value={amount}
+          value={localAmount}
           onChange={(e) => handleAmountChange(e.target.value)}
+          onBlur={handleAmountBlur}
           placeholder="0"
           className="flex-1 min-w-0 text-sm"
           disabled={disabled}
         />
         <Select
-          value={unit || unitType}
+          value={localUnit || unitType}
           onValueChange={handleUnitChange}
           disabled={disabled}
         >
