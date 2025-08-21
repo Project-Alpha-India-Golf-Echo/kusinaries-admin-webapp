@@ -31,6 +31,11 @@ interface ModalContextType {
   closeCreateEditIngredientModal: () => void;
   onIngredientSaved: () => void;
 
+  // Ingredient management modal
+  showIngredientManagementModal: boolean;
+  openIngredientManagementModal: () => void;
+  closeIngredientManagementModal: () => void;
+
   // Cook details modal
   showCookDetailsModal: boolean;
   selectedCook: Cook | null;
@@ -62,6 +67,10 @@ export const ModalProvider = ({ children }: { children: React.ReactNode }) => {
   const [showCreateEditIngredientModal, setShowCreateEditIngredientModal] = useState(false);
   const [editingIngredient, setEditingIngredient] = useState<Ingredient | null>(null);
   const [initialIngredientCategory, setInitialIngredientCategory] = useState<IngredientCategory | undefined>(undefined);
+  
+  // Ingredient management modal state
+  const [showIngredientManagementModal, setShowIngredientManagementModal] = useState(false);
+  
   // Cook details state
   const [showCookDetailsModal, setShowCookDetailsModal] = useState(false);
   const [selectedCook, setSelectedCook] = useState<Cook | null>(null);
@@ -133,6 +142,10 @@ export const ModalProvider = ({ children }: { children: React.ReactNode }) => {
     window.dispatchEvent(new CustomEvent('ingredientSaved'));
   };
 
+  // Ingredient management modal functions
+  const openIngredientManagementModal = () => setShowIngredientManagementModal(true);
+  const closeIngredientManagementModal = () => setShowIngredientManagementModal(false);
+
   // Cook details modal functions
   const openCookDetails = (cook: Cook) => {
     setSelectedCook(cook);
@@ -173,6 +186,11 @@ export const ModalProvider = ({ children }: { children: React.ReactNode }) => {
         openEditIngredientModal,
         closeCreateEditIngredientModal,
         onIngredientSaved,
+
+        // Ingredient management modal
+        showIngredientManagementModal,
+        openIngredientManagementModal,
+        closeIngredientManagementModal,
 
   // Cook details modal
   showCookDetailsModal,

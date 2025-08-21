@@ -6,6 +6,7 @@ import { CreateEditIngredientModal } from './components/CreateEditIngredientModa
 import { CreateEditMealModal } from './components/CreateEditMealModal'
 import { CreateUserModal } from './components/CreateUserModal'
 import { EditUserModal } from './components/EditUserModal'
+import { IngredientManagementModal } from './components/IngredientManagementModal'
 import { Layout } from './components/Layout'
 import { LoginForm } from './components/LoginForm'
 import { ProtectedRoute } from './components/ProtectedRoute'
@@ -38,6 +39,8 @@ function AppContent() {
     initialIngredientCategory,
     closeCreateEditIngredientModal,
   onIngredientSaved,
+  showIngredientManagementModal,
+  closeIngredientManagementModal,
   showCookDetailsModal,
   selectedCook,
   closeCookDetails
@@ -91,6 +94,11 @@ function AppContent() {
         editingMeal={editingMeal}
       />
 
+
+      <IngredientManagementModal
+        isOpen={showIngredientManagementModal}
+        onClose={closeIngredientManagementModal}
+      />
       <CreateEditIngredientModal
         isOpen={showCreateEditIngredientModal}
         onClose={closeCreateEditIngredientModal}
@@ -98,7 +106,6 @@ function AppContent() {
         editingIngredient={editingIngredient}
         initialCategory={initialIngredientCategory}
       />
-
       <CookDetailsModal
         cook={selectedCook}
         open={showCookDetailsModal}
