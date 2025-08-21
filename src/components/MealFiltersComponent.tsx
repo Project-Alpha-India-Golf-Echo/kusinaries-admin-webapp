@@ -4,14 +4,14 @@ import React, { useEffect, useState } from 'react';
 import { createDietaryTag, disableDietaryTag } from '../lib/supabaseQueries';
 import type { DietaryTag, MealCategory, MealFilters } from '../types';
 import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
+    AlertDialog,
+    AlertDialogAction,
+    AlertDialogCancel,
+    AlertDialogContent,
+    AlertDialogDescription,
+    AlertDialogFooter,
+    AlertDialogHeader,
+    AlertDialogTitle,
 } from './ui/alert-dialog';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
@@ -254,25 +254,32 @@ export const MealFiltersComponent: React.FC<MealFiltersComponentProps> = ({
           <div className="flex flex-wrap gap-2">
             {dietaryTags.map((tag) => (
               <div key={tag.tag_id} className="flex items-center">
-                <button
-                  type="button"
-                  onClick={() => handleDietaryTagToggle(tag.tag_id)}
-                  className={`flex gap-2 px-3 py-1 rounded-full text-sm transition-colors mr-1 ${filters.dietary_tags?.includes(tag.tag_id)
+                <div
+                  className={`flex items-center gap-2 px-3 py-1 rounded-full text-sm transition-colors mr-1 ${filters.dietary_tags?.includes(tag.tag_id)
                     ? 'bg-green-600 text-white'
                     : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
                     }`}
                 >
-                  {tag.tag_name}
+                  <button
+                    type="button"
+                    onClick={() => handleDietaryTagToggle(tag.tag_id)}
+                    className="flex-1"
+                  >
+                    {tag.tag_name}
+                  </button>
 
                   <button
                     type="button"
-                    onClick={() => openDisableDialog(tag)}
-                    className="text-gray-400 hover:text-red-600 transition-colors"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      openDisableDialog(tag);
+                    }}
+                    className="text-gray-400 hover:text-red-600 transition-colors ml-1"
                     aria-label="Disable tag"
                   >
                     <X className="w-4 h-4" />
                   </button>
-                </button>
+                </div>
 
               </div>
             ))}

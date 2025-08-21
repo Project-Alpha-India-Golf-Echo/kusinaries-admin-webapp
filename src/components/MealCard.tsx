@@ -2,15 +2,15 @@ import { Archive, Clock, Edit, RotateCcw, Tag, Utensils } from 'lucide-react';
 import React from 'react';
 import type { Meal } from '../types';
 import {
-    AlertDialog,
-    AlertDialogAction,
-    AlertDialogCancel,
-    AlertDialogContent,
-    AlertDialogDescription,
-    AlertDialogFooter,
-    AlertDialogHeader,
-    AlertDialogTitle,
-    AlertDialogTrigger,
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
 } from './ui/alert-dialog';
 import { Button } from './ui/button';
 
@@ -72,25 +72,30 @@ export const MealCard: React.FC<MealCardProps> = ({
   };
 
   const calculateEstimatedPrice = () => {
-    if (!meal.meal_ingredients) return 0;
-    
-    return meal.meal_ingredients.reduce((total, mealIngredient) => {
-      // Handle both nested and flat ingredient data structures
-      const ingredient = mealIngredient.ingredient || mealIngredient.ingredients;
-      if (!ingredient) {
-        console.warn('No ingredient data found for price calculation:', mealIngredient);
-        return total;
-      }
-
-      // Parse quantity (assuming it's in grams or as a decimal for kilos)
-      const quantity = parseFloat(mealIngredient.quantity) || 0;
-      const pricePerKilo = ingredient.price_per_kilo || 0;
-      
-      // Convert quantity to kilos if it seems to be in grams (> 10)
-      const quantityInKilos = quantity > 10 ? quantity / 1000 : quantity;
-      
-      return total + (quantityInKilos * pricePerKilo);
-    }, 0);
+    // Base ingredient price
+    let total = 0;
+    if (meal.meal_ingredients) {
+      total += meal.meal_ingredients.reduce((acc, mealIngredient) => {
+        const ingredient = mealIngredient.ingredient || mealIngredient.ingredients;
+        if (!ingredient) return acc;
+        const quantity = parseFloat(mealIngredient.quantity) || 0;
+        const pricePerKilo = ingredient.price_per_kilo || 0;
+        const quantityInKilos = quantity > 10 ? quantity / 1000 : quantity;
+        return acc + (quantityInKilos * pricePerKilo);
+      }, 0);
+    }
+    // Add condiment pricing (quantity * price_per_unit)
+    const condimentsArr = (meal as any).meal_condiments || meal.meal_condiments;
+    if (condimentsArr) {
+      total += condimentsArr.reduce((acc: number, mc: any) => {
+        const condiment = mc.condiment || mc.condiments; // possible shapes
+        if (!condiment) return acc;
+        const qty = parseFloat((mc.quantity || '').toString().replace(/[^0-9.]/g, '')) || 0;
+        const ppu = condiment.price_per_unit || 0;
+        return acc + qty * ppu;
+      }, 0);
+    }
+    return total;
   };
 
   const ingredientCounts = getIngredientCounts();
@@ -169,16 +174,18 @@ export const MealCard: React.FC<MealCardProps> = ({
             </div>
             <div className="flex flex-wrap gap-1">
               {((meal as any).meal_dietary_tags || meal.dietary_tags).slice(0, 3).map((tagData: any, index: number) => {
-                // Handle different possible structures from Supabase joins
-                const tag = tagData.dietary_tags || tagData;
-                const tagId = tag.tag_id || tag.id || index;
-                const tagName = tag.tag_name || tag.name || 'Unknown';
-                
+                // Possible shapes:
+                // 1. Direct tag object { tag_id, tag_name }
+                // 2. meal_dietary_tags row { meal_id, tag_id, ... , dietary_tag: { tag_id, tag_name } }
+                // 3. Legacy shape { dietary_tags: { tag_id, tag_name } }
+                const direct = tagData.tag_id && tagData.tag_name ? tagData : null;
+                const nested1 = (tagData as any).dietary_tag; // new alias
+                const nested2 = (tagData as any).dietary_tags; // legacy alias
+                const tagObj = direct || nested1 || nested2 || tagData;
+                const tagId = tagObj.tag_id || tagObj.id || index;
+                const tagName = tagObj.tag_name || tagObj.name || 'Unknown';
                 return (
-                  <span
-                    key={tagId}
-                    className="px-2 py-1 bg-gray-100 text-gray-700 text-xs rounded-full"
-                  >
+                  <span key={tagId} className="px-2 py-1 bg-gray-100 text-gray-700 text-xs rounded-full">
                     {tagName}
                   </span>
                 );

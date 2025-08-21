@@ -41,6 +41,28 @@ export interface DietaryTag {
   is_disabled?: boolean;
 }
 
+export type CondimentUnitType = 'ml' | 'g' | 'tbsp' | 'tsp' | 'piece' | 'sachet' | 'bottle';
+
+export interface Condiment {
+  condiment_id: number;
+  name: string;
+  price_per_unit: number;
+  unit_type: CondimentUnitType;
+  image_url?: string;
+  signed_image_url?: string; // transient signed URL for rendering
+  is_archived: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface MealCondiment {
+  meal_condiment_id: number;
+  meal_id: number;
+  condiment_id: number;
+  quantity: string;
+  condiment?: Condiment; // Populated when joining tables
+}
+
 export interface MealIngredient {
   meal_ingredient_id: number;
   meal_id: number;
@@ -61,6 +83,7 @@ export interface Meal {
   created_at: string;
   updated_at: string;
   meal_ingredients?: MealIngredient[];
+  meal_condiments?: MealCondiment[];
   dietary_tags?: DietaryTag[];
   estimated_price?: number; // Calculated field
   ai_generated?: boolean; // Marks AI-seeded meals for safe cleanup
@@ -74,6 +97,10 @@ export interface CreateMealData {
   image_url?: string; // storage object path
   ingredients: {
     ingredient_id: number;
+    quantity: string;
+  }[];
+  condiments?: {
+    condiment_id: number;
     quantity: string;
   }[];
   dietary_tag_ids: number[];
