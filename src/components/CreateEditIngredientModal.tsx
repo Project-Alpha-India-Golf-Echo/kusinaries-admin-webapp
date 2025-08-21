@@ -223,7 +223,7 @@ export const CreateEditIngredientModal: React.FC<CreateEditIngredientModalProps>
               </SelectContent>
             </Select>
           </div>
-          {formData.category === 'Glow' && (
+          {((isCategoryLocked && initialCategory === 'Glow') || (!isCategoryLocked && formData.category === 'Glow')) && (
             <div className='space-y-2'>
               <Label htmlFor="glow_subcategory">Glow Subcategory *</Label>
               <Select

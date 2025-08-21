@@ -5,6 +5,7 @@ import { getIngredientsByCategory } from '../lib/supabaseQueries';
 import type { Ingredient, IngredientCategory } from '../types';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
+import { QuantitySelector, validateQuantity } from './ui/quantity-selector';
 
 interface IngredientSectionProps {
   category: IngredientCategory;
@@ -103,8 +104,6 @@ export const IngredientSection: React.FC<IngredientSectionProps> = ({
     return selected?.quantity || '';
   };
 
-  const quantityPattern = /^(?=\S)(?=.*\d)(?:\d+\.?\d*|\d*\.\d+)?\s*(g|kg|cup|cups|piece|pieces|tbsp|tsp)?$/i;
-
   const startPendingAdd = (ingredientId: number) => {
     setPendingAdds(prev => ({ ...prev, [ingredientId]: '' }));
   };
@@ -123,7 +122,7 @@ export const IngredientSection: React.FC<IngredientSectionProps> = ({
 
   const confirmAdd = (ingredient: Ingredient) => {
     const draft = pendingAdds[ingredient.ingredient_id];
-    if (!draft || !quantityPattern.test(draft.trim())) return;
+    if (!draft || !validateQuantity(draft.trim())) return;
     if (!isIngredientSelected(ingredient.ingredient_id)) {
       onIngredientSelect(ingredient);
     }
@@ -245,22 +244,12 @@ export const IngredientSection: React.FC<IngredientSectionProps> = ({
                 {pending ? (
                   <div className="flex items-center space-x-2">
                     <div className="relative flex-1">
-                      <Input
-                        type="text"
-                        autoFocus
-                        placeholder="250g"
+                      <QuantitySelector
                         value={pendingQty}
-                        onChange={(e) => updatePendingQuantity(ingredient.ingredient_id, e.target.value)}
-                        onKeyDown={(e) => {
-                          if (e.key === 'Enter' && pendingQty.trim() && quantityPattern.test(pendingQty.trim())) {
-                            confirmAdd(ingredient);
-                          } else if (e.key === 'Escape') {
-                            cancelPendingAdd(ingredient.ingredient_id);
-                          }
-                        }}
-                        className="w-full text-sm border-2 border-amber-300 focus:border-amber-500 focus:ring-amber-200"
+                        onChange={(value) => updatePendingQuantity(ingredient.ingredient_id, value)}
+                        className="w-full"
                       />
-                      {!quantityPattern.test(pendingQty.trim()) && pendingQty.trim() && (
+                      {!validateQuantity(pendingQty.trim()) && pendingQty.trim() && (
                         <div className="absolute -bottom-5 left-0 text-[10px] text-red-500 whitespace-nowrap">Invalid format</div>
                       )}
                     </div>
@@ -268,7 +257,7 @@ export const IngredientSection: React.FC<IngredientSectionProps> = ({
                       type="button"
                       size="sm"
                       onClick={() => confirmAdd(ingredient)}
-                      disabled={!pendingQty.trim() || !quantityPattern.test(pendingQty.trim())}
+                      disabled={!pendingQty.trim() || !validateQuantity(pendingQty.trim())}
                       className="bg-green-600 hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed shadow-sm"
                     >
                       <Check className="w-4 h-4" />
@@ -285,12 +274,10 @@ export const IngredientSection: React.FC<IngredientSectionProps> = ({
                   </div>
                 ) : selected ? (
                   <div className="flex items-center space-x-3">
-                    <Input
-                      type="text"
-                      placeholder="250g"
+                    <QuantitySelector
                       value={getIngredientQuantity(ingredient.ingredient_id)}
-                      onChange={(e) => onQuantityChange(ingredient.ingredient_id, e.target.value)}
-                      className="flex-1 text-sm border-blue-300 focus:border-blue-500 focus:ring-blue-200"
+                      onChange={(value) => onQuantityChange(ingredient.ingredient_id, value)}
+                      className="flex-1"
                     />
                     <span className="inline-flex items-center gap-1 text-[10px] px-2.5 py-1.5 rounded-full bg-blue-600 text-white font-bold uppercase tracking-wide shadow-sm whitespace-nowrap">
                       <Check className="w-3 h-3" />
