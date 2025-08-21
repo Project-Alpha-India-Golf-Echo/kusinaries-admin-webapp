@@ -150,18 +150,46 @@ export const CreateEditMealModal: React.FC<CreateEditMealModalProps> = ({
         total += quantityInKg * ingredient.price_per_kilo;
       });
 
-      // Calculate condiment costs
+      // Calculate condiment costs (convert to condiment.unit_type)
+      const convertCondimentQuantity = (raw: string, baseUnit: string): number => {
+        const q = raw.toLowerCase().trim();
+        const value = parseFloat(q.replace(/[^0-9.]/g, '')) || 0;
+        if (value === 0) return 0;
+        const has = (u: string) => q.includes(u);
+        // Volume conversions
+        if (baseUnit === 'ml') {
+          if (has('ml')) return value;
+          if (has('tbsp')) return value * 15; // 1 tbsp = 15 ml
+          if (has('tsp')) return value * 5;  // 1 tsp = 5 ml
+          return 0;
+        }
+        if (baseUnit === 'g') {
+          if (has('g')) return value;
+          if (has('tbsp')) return value * 15; // assume 1 tbsp ~15g (rough)
+          if (has('tsp')) return value * 5;  // assume 1 tsp ~5g
+          return 0;
+        }
+        if (baseUnit === 'tbsp') {
+          if (has('tbsp')) return value;
+          if (has('tsp')) return value / 3; // 1 tbsp = 3 tsp
+          if (has('ml')) return value / 15; // inverse of 15ml per tbsp
+          return 0;
+        }
+        if (baseUnit === 'tsp') {
+          if (has('tsp')) return value;
+            if (has('tbsp')) return value * 3;
+          if (has('ml')) return value / 5; // 5ml per tsp
+          return 0;
+        }
+  // piece & bottle removed from allowed units
+        return 0;
+      };
       selectedCondiments.forEach(item => {
         if (!item.quantity.trim()) return;
-        
         const condiment = allCondiments.find((cond: Condiment) => cond.condiment_id === item.condiment_id);
         if (!condiment) return;
-
-        const quantityStr = item.quantity.toLowerCase().trim();
-        const quantityValue = parseFloat(quantityStr.replace(/[^0-9.]/g, '')) || 0;
-        
-        // For condiments, quantity is already in the unit they're priced in
-        total += quantityValue * condiment.price_per_unit;
+        const converted = convertCondimentQuantity(item.quantity, condiment.unit_type);
+        total += converted * condiment.price_per_unit;
       });
       
       setEstimatedPrice(total);
@@ -931,17 +959,43 @@ export const CreateEditMealModal: React.FC<CreateEditMealModalProps> = ({
                           ingredientCost += quantityInKg * ingredient.price_per_kilo;
                         });
 
-                        // Calculate condiment costs
+                        // Calculate condiment costs with conversion
+                        const convertCondimentQuantity = (raw: string, baseUnit: string): number => {
+                          const q = raw.toLowerCase().trim();
+                          const value = parseFloat(q.replace(/[^0-9.]/g, '')) || 0;
+                          if (value === 0) return 0;
+                          const has = (u: string) => q.includes(u);
+                          switch (baseUnit) {
+                            case 'ml':
+                              if (has('ml')) return value;
+                              if (has('tbsp')) return value * 15;
+                              if (has('tsp')) return value * 5;
+                              return 0;
+                            case 'g':
+                              if (has('g')) return value;
+                              if (has('tbsp')) return value * 15;
+                              if (has('tsp')) return value * 5;
+                              return 0;
+                            case 'tbsp':
+                              if (has('tbsp')) return value;
+                              if (has('tsp')) return value / 3;
+                              if (has('ml')) return value / 15;
+                              return 0;
+                            case 'tsp':
+                              if (has('tsp')) return value;
+                              if (has('tbsp')) return value * 3;
+                              if (has('ml')) return value / 5;
+                              return 0;
+                            // piece & bottle removed
+                            default:
+                              return 0;
+                          }
+                        };
                         selectedCondiments.forEach(item => {
                           if (!item.quantity.trim()) return;
-                          
                           const condiment = allCondiments.find((cond: Condiment) => cond.condiment_id === item.condiment_id);
                           if (!condiment) return;
-
-                          const quantityStr = item.quantity.toLowerCase().trim();
-                          const quantityValue = parseFloat(quantityStr.replace(/[^0-9.]/g, '')) || 0;
-                          
-                          condimentCost += quantityValue * condiment.price_per_unit;
+                          condimentCost += convertCondimentQuantity(item.quantity, condiment.unit_type) * condiment.price_per_unit;
                         });
 
                         return (
@@ -1029,10 +1083,40 @@ export const CreateEditMealModal: React.FC<CreateEditMealModalProps> = ({
                             
                             // Calculate individual condiment cost
                             let itemCost = 0;
-                            if (condimentDetails && condimentItem.quantity.trim()) {
-                              const quantityValue = parseFloat(condimentItem.quantity.toLowerCase().replace(/[^0-9.]/g, '')) || 0;
-                              itemCost = quantityValue * condimentDetails.price_per_unit;
-                            }
+                              if (condimentDetails && condimentItem.quantity.trim()) {
+                                const conv = (raw: string, baseUnit: string): number => {
+                                  const q = raw.toLowerCase().trim();
+                                  const value = parseFloat(q.replace(/[^0-9.]/g, '')) || 0;
+                                  if (value === 0) return 0;
+                                  const has = (u: string) => q.includes(u);
+                                  switch (baseUnit) {
+                                    case 'ml':
+                                      if (has('ml')) return value;
+                                      if (has('tbsp')) return value * 15;
+                                      if (has('tsp')) return value * 5;
+                                      return 0;
+                                    case 'g':
+                                      if (has('g')) return value;
+                                      if (has('tbsp')) return value * 15;
+                                      if (has('tsp')) return value * 5;
+                                      return 0;
+                                    case 'tbsp':
+                                      if (has('tbsp')) return value;
+                                      if (has('tsp')) return value / 3;
+                                      if (has('ml')) return value / 15;
+                                      return 0;
+                                    case 'tsp':
+                                      if (has('tsp')) return value;
+                                      if (has('tbsp')) return value * 3;
+                                      if (has('ml')) return value / 5;
+                                      return 0;
+                                    // piece & bottle removed
+                                    default:
+                                      return 0;
+                                  }
+                                };
+                                itemCost = conv(condimentItem.quantity, condimentDetails.unit_type) * condimentDetails.price_per_unit;
+                              }
                             
                             return (
                               <li key={condimentItem.condiment_id} className="py-1 flex justify-between gap-3">

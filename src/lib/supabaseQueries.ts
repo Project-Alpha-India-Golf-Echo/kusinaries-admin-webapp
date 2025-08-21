@@ -1568,7 +1568,7 @@ export const getAllCondiments = async () => {
   try {
     const { data, error } = await supabase
       .from('condiments')
-      .select('*')
+      .select('*, package_price, package_quantity')
       .order('name');
     
     if (error) throw error;

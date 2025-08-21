@@ -1,6 +1,6 @@
 import {
-    FileUpload, FileUploadDropzone, FileUploadItem, FileUploadItemDelete,
-    FileUploadItemMetadata, FileUploadItemPreview, FileUploadList, FileUploadTrigger,
+  FileUpload, FileUploadDropzone, FileUploadItem, FileUploadItemDelete,
+  FileUploadItemMetadata, FileUploadItemPreview, FileUploadList, FileUploadTrigger,
 } from "@/components/ui/file-upload";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Loader2, Upload, X } from 'lucide-react';
@@ -29,7 +29,8 @@ export const CreateEditCondimentModal: React.FC<CreateEditCondimentModalProps> =
   const [formData, setFormData] = useState({
     name: '',
     unit_type: 'ml' as CondimentUnitType,
-    price_per_unit: ''
+    package_price: '', // total price of the package
+    package_quantity: '' // quantity amount corresponding to that price
   });
   const [selectedImage, setSelectedImage] = useState<File | null>(null);
   const [isLoading, setIsLoading] = useState(false);
@@ -40,16 +41,19 @@ export const CreateEditCondimentModal: React.FC<CreateEditCondimentModalProps> =
   useEffect(() => {
     if (isOpen) {
       if (editingCondiment) {
+        // We don't know the original package quantity; default to 1 unit so edits preserve existing per-unit price.
         setFormData({
           name: editingCondiment.name,
           unit_type: editingCondiment.unit_type,
-          price_per_unit: editingCondiment.price_per_unit.toString()
+          package_price: editingCondiment.price_per_unit.toString(),
+          package_quantity: '1'
         });
       } else {
         setFormData({
           name: '',
           unit_type: 'ml',
-          price_per_unit: ''
+          package_price: '',
+          package_quantity: ''
         });
       }
       setSelectedImage(null);
@@ -61,11 +65,17 @@ export const CreateEditCondimentModal: React.FC<CreateEditCondimentModalProps> =
     setIsLoading(true);
 
     try {
-      const pricePerUnit = parseFloat(formData.price_per_unit);
-      if (isNaN(pricePerUnit) || pricePerUnit < 0) {
-        toast.error('Please enter a valid price per unit');
+      const packagePrice = parseFloat(formData.package_price);
+      const packageQuantity = parseFloat(formData.package_quantity);
+      if (isNaN(packagePrice) || packagePrice <= 0) {
+        toast.error('Enter a valid package price');
         return;
       }
+      if (isNaN(packageQuantity) || packageQuantity <= 0) {
+        toast.error('Enter a valid package quantity');
+        return;
+      }
+      const pricePerUnit = packagePrice / packageQuantity;
 
       let imageUrl = isEditing ? editingCondiment?.image_url : undefined;
 
@@ -100,6 +110,8 @@ export const CreateEditCondimentModal: React.FC<CreateEditCondimentModalProps> =
         name: formData.name.trim(),
         unit_type: formData.unit_type,
         price_per_unit: pricePerUnit,
+        package_price: packagePrice,
+        package_quantity: packageQuantity,
         image_url: imageUrl,
         is_archived: false
       };
@@ -187,30 +199,59 @@ export const CreateEditCondimentModal: React.FC<CreateEditCondimentModalProps> =
                   <SelectItem value="g">g (grams)</SelectItem>
                   <SelectItem value="tbsp">tbsp (tablespoons)</SelectItem>
                   <SelectItem value="tsp">tsp (teaspoons)</SelectItem>
-                  <SelectItem value="piece">piece</SelectItem>
-                  <SelectItem value="sachet">sachet</SelectItem>
-                  <SelectItem value="bottle">bottle</SelectItem>
+                  {/* Removed piece & bottle for precision */}
                 </SelectContent>
               </Select>
             </div>
 
-            {/* Price per Unit */}
-            <div className="space-y-2">
-              <Label htmlFor="price_per_unit" className="text-sm font-medium text-gray-700">
-                Price per Unit (₱) *
-              </Label>
-              <Input
-                id="price_per_unit"
-                type="number"
-                step="0.01"
-                min="0"
-                value={formData.price_per_unit}
-                onChange={(e) => setFormData(prev => ({ ...prev, price_per_unit: e.target.value }))}
-                placeholder="0.00"
-                required
-                className="w-full"
-              />
+            {/* Package Price & Quantity (derive per-unit price) */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div className="space-y-2">
+                <Label htmlFor="package_price" className="text-sm font-medium text-gray-700">
+                  Package Price (₱) *
+                </Label>
+                <Input
+                  id="package_price"
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  value={formData.package_price}
+                  onChange={(e) => setFormData(prev => ({ ...prev, package_price: e.target.value }))}
+                  placeholder="e.g., 40"
+                  required
+                  className="w-full"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="package_quantity" className="text-sm font-medium text-gray-700">
+                  Package Quantity ({formData.unit_type}) *
+                </Label>
+                <Input
+                  id="package_quantity"
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  value={formData.package_quantity}
+                  onChange={(e) => setFormData(prev => ({ ...prev, package_quantity: e.target.value }))}
+                  placeholder={`e.g., 100`}
+                  required
+                  className="w-full"
+                />
+              </div>
             </div>
+            {(() => {
+              const p = parseFloat(formData.package_price);
+              const q = parseFloat(formData.package_quantity);
+              if (!isNaN(p) && p > 0 && !isNaN(q) && q > 0) {
+                const per = p / q;
+                return (
+                  <div className="text-xs text-gray-600 bg-gray-50 border rounded-md p-3">
+                    Computed price per {formData.unit_type}: <span className="font-semibold text-gray-800">₱{per.toFixed(4)}</span>
+                  </div>
+                );
+              }
+              return null;
+            })()}
 
             {/* Image Upload */}
             <div className="space-y-2">

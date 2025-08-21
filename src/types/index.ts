@@ -41,13 +41,16 @@ export interface DietaryTag {
   is_disabled?: boolean;
 }
 
-export type CondimentUnitType = 'ml' | 'g' | 'tbsp' | 'tsp' | 'piece' | 'sachet' | 'bottle';
+// Allowed precise condiment units (removed sachet, bottle, piece for consistency)
+export type CondimentUnitType = 'ml' | 'g' | 'tbsp' | 'tsp';
 
 export interface Condiment {
   condiment_id: number;
   name: string;
   price_per_unit: number;
   unit_type: CondimentUnitType;
+  package_price?: number; // total price used to derive per-unit (optional stored)
+  package_quantity?: number; // quantity basis for per-unit
   image_url?: string;
   signed_image_url?: string; // transient signed URL for rendering
   is_archived: boolean;
