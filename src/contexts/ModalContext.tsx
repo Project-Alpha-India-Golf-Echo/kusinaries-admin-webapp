@@ -1,5 +1,5 @@
 import { createContext, useContext, useState } from 'react';
-import type { Cook, Ingredient, IngredientCategory, Meal, User } from '../types';
+import type { Condiment, Cook, Ingredient, IngredientCategory, Meal, User } from '../types';
 
 interface ModalContextType {
   // User modals
@@ -36,6 +36,19 @@ interface ModalContextType {
   openIngredientManagementModal: () => void;
   closeIngredientManagementModal: () => void;
 
+  // Condiment modals
+  showCreateEditCondimentModal: boolean;
+  editingCondiment: Condiment | null;
+  openCreateCondimentModal: () => void;
+  openEditCondimentModal: (condiment: Condiment) => void;
+  closeCreateEditCondimentModal: () => void;
+  onCondimentSaved: () => void;
+
+  // Condiment management modal
+  showCondimentManagementModal: boolean;
+  openCondimentManagementModal: () => void;
+  closeCondimentManagementModal: () => void;
+
   // Cook details modal
   showCookDetailsModal: boolean;
   selectedCook: Cook | null;
@@ -70,6 +83,13 @@ export const ModalProvider = ({ children }: { children: React.ReactNode }) => {
   
   // Ingredient management modal state
   const [showIngredientManagementModal, setShowIngredientManagementModal] = useState(false);
+  
+  // Condiment modal state
+  const [showCreateEditCondimentModal, setShowCreateEditCondimentModal] = useState(false);
+  const [editingCondiment, setEditingCondiment] = useState<Condiment | null>(null);
+  
+  // Condiment management modal state
+  const [showCondimentManagementModal, setShowCondimentManagementModal] = useState(false);
   
   // Cook details state
   const [showCookDetailsModal, setShowCookDetailsModal] = useState(false);
@@ -146,6 +166,31 @@ export const ModalProvider = ({ children }: { children: React.ReactNode }) => {
   const openIngredientManagementModal = () => setShowIngredientManagementModal(true);
   const closeIngredientManagementModal = () => setShowIngredientManagementModal(false);
 
+  // Condiment modal functions
+  const openCreateCondimentModal = () => {
+    setEditingCondiment(null);
+    setShowCreateEditCondimentModal(true);
+  };
+
+  const openEditCondimentModal = (condiment: Condiment) => {
+    setEditingCondiment(condiment);
+    setShowCreateEditCondimentModal(true);
+  };
+
+  const closeCreateEditCondimentModal = () => {
+    setShowCreateEditCondimentModal(false);
+    setEditingCondiment(null);
+  };
+
+  const onCondimentSaved = () => {
+    // Trigger a refresh event that components can listen to
+    window.dispatchEvent(new CustomEvent('condimentSaved'));
+  };
+
+  // Condiment management modal functions
+  const openCondimentManagementModal = () => setShowCondimentManagementModal(true);
+  const closeCondimentManagementModal = () => setShowCondimentManagementModal(false);
+
   // Cook details modal functions
   const openCookDetails = (cook: Cook) => {
     setSelectedCook(cook);
@@ -191,6 +236,19 @@ export const ModalProvider = ({ children }: { children: React.ReactNode }) => {
         showIngredientManagementModal,
         openIngredientManagementModal,
         closeIngredientManagementModal,
+
+        // Condiment modals
+        showCreateEditCondimentModal,
+        editingCondiment,
+        openCreateCondimentModal,
+        openEditCondimentModal,
+        closeCreateEditCondimentModal,
+        onCondimentSaved,
+
+        // Condiment management modal
+        showCondimentManagementModal,
+        openCondimentManagementModal,
+        closeCondimentManagementModal,
 
   // Cook details modal
   showCookDetailsModal,

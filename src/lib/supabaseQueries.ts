@@ -690,9 +690,13 @@ export const getAllMeals = async (): Promise<{ success: boolean; data?: Meal[]; 
           *,
           ingredients(*)
         ),
-        meal_dietary_tags(
+        dietary_tags:meal_dietary_tags(
           *,
-          dietary_tags(*)
+          dietary_tag:dietary_tags(*)
+        ),
+        meal_condiments(
+          *,
+          condiments(*)
         )
       `)
       .eq('is_disabled', false) // Only get active (non-archived) meals
@@ -739,6 +743,10 @@ export const getMealById = async (id: string): Promise<{ success: boolean; data?
           dietary_tag:dietary_tags(
             name
           )
+        ),
+        meal_condiments(
+          *,
+          condiments(*)
         )
       `)
       .eq('meal_id', id)
@@ -805,7 +813,23 @@ export const createMeal = async (mealData: CreateMealData): Promise<{ success: b
       }
     }
 
-    // Step 3: Insert dietary tags if any
+    // Step 3: Insert condiments if any
+    if (mealData.condiments && mealData.condiments.length > 0) {
+      const condimentRows = mealData.condiments.map(c => ({
+        meal_id: mealId,
+        condiment_id: c.condiment_id,
+        quantity: c.quantity
+      }));
+      const { error: condError } = await supabase
+        .from('meal_condiments')
+        .insert(condimentRows);
+      if (condError) {
+        console.error('Error inserting meal condiments:', condError);
+        return { success: false, error: 'Meal created but failed to attach condiments' };
+      }
+    }
+
+    // Step 4: Insert dietary tags if any
     if (mealData.dietary_tag_ids && mealData.dietary_tag_ids.length > 0) {
       const tagRows = mealData.dietary_tag_ids.map(tagId => ({
         meal_id: mealId,
@@ -820,7 +844,7 @@ export const createMeal = async (mealData: CreateMealData): Promise<{ success: b
       }
     }
 
-    // Step 4: Log activity
+    // Step 5: Log activity
     await createActivityLogEntry(
       'meal',
       mealId,
@@ -881,6 +905,57 @@ export const updateMeal = async (id: string, mealData: Partial<CreateMealData>):
     if (error) {
       console.error('Error updating meal:', error);
       return { success: false, error: error.message };
+    }
+
+    // Replace ingredients if provided
+    if (mealData.ingredients) {
+      const { error: delIng } = await supabase.from('meal_ingredients').delete().eq('meal_id', id);
+      if (delIng) {
+        console.error('Error clearing existing meal ingredients:', delIng);
+        return { success: false, error: 'Failed to update meal ingredients' };
+      }
+      if (mealData.ingredients.length > 0) {
+        const rows = mealData.ingredients.map(i => ({ meal_id: id, ingredient_id: i.ingredient_id, quantity: i.quantity }));
+        const { error: insIng } = await supabase.from('meal_ingredients').insert(rows);
+        if (insIng) {
+          console.error('Error inserting updated meal ingredients:', insIng);
+          return { success: false, error: 'Failed to insert updated meal ingredients' };
+        }
+      }
+    }
+
+    // Replace condiments if provided
+    if (mealData.condiments) {
+      const { error: delCond } = await supabase.from('meal_condiments').delete().eq('meal_id', id);
+      if (delCond) {
+        console.error('Error clearing existing meal condiments:', delCond);
+        return { success: false, error: 'Failed to update meal condiments' };
+      }
+      if (mealData.condiments.length > 0) {
+        const rows = mealData.condiments.map(c => ({ meal_id: id, condiment_id: c.condiment_id, quantity: c.quantity }));
+        const { error: insCond } = await supabase.from('meal_condiments').insert(rows);
+        if (insCond) {
+          console.error('Error inserting updated meal condiments:', insCond);
+          return { success: false, error: 'Failed to insert updated meal condiments' };
+        }
+      }
+    }
+
+    // Replace dietary tags if provided
+    if (mealData.dietary_tag_ids) {
+      const { error: delTags } = await supabase.from('meal_dietary_tags').delete().eq('meal_id', id);
+      if (delTags) {
+        console.error('Error clearing existing meal dietary tags:', delTags);
+        return { success: false, error: 'Failed to update meal dietary tags' };
+      }
+      if (mealData.dietary_tag_ids.length > 0) {
+        const tagRows = mealData.dietary_tag_ids.map(tagId => ({ meal_id: id, tag_id: tagId }));
+        const { error: insTags } = await supabase.from('meal_dietary_tags').insert(tagRows);
+        if (insTags) {
+          console.error('Error inserting updated meal dietary tags:', insTags);
+          return { success: false, error: 'Failed to insert updated meal dietary tags' };
+        }
+      }
     }
 
     // Log the activity
@@ -1483,6 +1558,94 @@ export const getRecentlyVerifiedCooks = async (limit: number = 5): Promise<{ suc
   } catch (error) {
     console.error('Error fetching recently verified cooks:', error);
     return { success: false, error: 'Failed to fetch verified cooks' };
+  }
+};
+
+// ============================= CONDIMENTS =============================
+
+// Get all condiments
+export const getAllCondiments = async () => {
+  try {
+    const { data, error } = await supabase
+      .from('condiments')
+      .select('*')
+      .order('name');
+    
+    if (error) throw error;
+    
+    // Add signed URLs for images
+    let condimentsWithUrls = data || [];
+    if (condimentsWithUrls.length > 0) {
+      const paths = condimentsWithUrls
+        .map(condiment => condiment.image_url)
+        .filter(Boolean);
+      
+      if (paths.length > 0) {
+        const urlMap = await getSignedUrls(paths);
+        condimentsWithUrls = condimentsWithUrls.map(condiment => ({
+          ...condiment,
+          signed_image_url: condiment.image_url ? urlMap[condiment.image_url] : null
+        }));
+      }
+    }
+    
+    return { success: true, data: condimentsWithUrls };
+  } catch (error) {
+    console.error('Error fetching condiments:', error);
+    return { success: false, error: 'Failed to fetch condiments' };
+  }
+};
+
+// Create condiment
+export const createCondiment = async (condimentData: any) => {
+  try {
+    const { data, error } = await supabase
+      .from('condiments')
+      .insert([condimentData])
+      .select()
+      .single();
+    
+    if (error) throw error;
+    return { success: true, data };
+  } catch (error) {
+    console.error('Error creating condiment:', error);
+    return { success: false, error: 'Failed to create condiment' };
+  }
+};
+
+// Update condiment
+export const updateCondiment = async (condimentId: number, updates: any) => {
+  try {
+    const { data, error } = await supabase
+      .from('condiments')
+      .update(updates)
+      .eq('condiment_id', condimentId)
+      .select()
+      .single();
+    
+    if (error) throw error;
+    return { success: true, data };
+  } catch (error) {
+    console.error('Error updating condiment:', error);
+    return { success: false, error: 'Failed to update condiment' };
+  }
+};
+
+// Archive/restore condiment
+export const toggleCondimentArchiveStatus = async (condimentId: number, archived: boolean) => {
+  try {
+    const { data, error } = await supabase
+      .from('condiments')
+      .update({ is_archived: archived })
+      .eq('condiment_id', condimentId)
+      .select()
+      .single();
+    
+    if (error) throw error;
+    return { success: true, data };
+  } catch (error) {
+    console.error('Error toggling condiment archive status:', error);
+    return { success: false, error: 'Failed to toggle condiment archive status' };
   }
 };
 

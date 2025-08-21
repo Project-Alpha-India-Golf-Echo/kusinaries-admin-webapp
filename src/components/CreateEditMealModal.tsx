@@ -9,8 +9,9 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { toast } from "sonner";
 import { useModal } from '../contexts/ModalContext';
 import { updateImageInStorage, uploadImageToStorage, validateImageFileForStorage } from '../lib/storageUtils';
-import { createMeal, getAllDietaryTags, getAllIngredients, updateMeal } from '../lib/supabaseQueries';
-import type { CreateMealData, DietaryTag, Ingredient, Meal, MealCategory } from '../types';
+import { createMeal, getAllCondiments, getAllDietaryTags, getAllIngredients, updateMeal } from '../lib/supabaseQueries';
+import type { Condiment, CreateMealData, DietaryTag, Ingredient, Meal, MealCategory } from '../types';
+import { CondimentSection } from './CondimentSection';
 import { IngredientSection } from './IngredientSection';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
@@ -36,65 +37,44 @@ export const CreateEditMealModal: React.FC<CreateEditMealModalProps> = ({
 
   const [selectedImage, setSelectedImage] = useState<File | null>(null);
   const [selectedIngredients, setSelectedIngredients] = useState<{ ingredient_id: number; quantity: string }[]>([]);
+  const [selectedCondiments, setSelectedCondiments] = useState<{ condiment_id: number; quantity: string }[]>([]);
   const [selectedDietaryTags, setSelectedDietaryTags] = useState<number[]>([]);
   const [dietaryTags, setDietaryTags] = useState<DietaryTag[]>([]);
   const [allIngredients, setAllIngredients] = useState<Ingredient[]>([]);
+  const [allCondiments, setAllCondiments] = useState<Condiment[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [estimatedPrice, setEstimatedPrice] = useState(0);
   const [validationErrors, setValidationErrors] = useState<string[]>([]);
   const [showConfirm, setShowConfirm] = useState(false);
+  const [lastPopulatedMealId, setLastPopulatedMealId] = useState<number | null>(null);
 
-  const { openIngredientManagementModal } = useModal();
+  const { openIngredientManagementModal, openCondimentManagementModal } = useModal();
 
   // Load dietary tags and ingredients and populate form if editing
   useEffect(() => {
     const loadData = async () => {
-      const [tagsResult, ingredientsResult] = await Promise.all([
-        getAllDietaryTags(),
-        getAllIngredients()
-      ]);
-
-      if (tagsResult.success && tagsResult.data) {
-        setDietaryTags(tagsResult.data);
-      }
-
-      if (ingredientsResult.success && ingredientsResult.data) {
-        setAllIngredients(ingredientsResult.data);
+      try {
+        const [dietaryTagsResponse, ingredientsResponse, condimentsResponse] = await Promise.all([
+          getAllDietaryTags(),
+          getAllIngredients(),
+          getAllCondiments()
+        ]);
+        if (dietaryTagsResponse.success && dietaryTagsResponse.data) {
+          setDietaryTags(dietaryTagsResponse.data);
+        }
+        if (ingredientsResponse.success && ingredientsResponse.data) {
+          setAllIngredients(ingredientsResponse.data);
+        }
+        if (condimentsResponse.success && condimentsResponse.data) {
+          setAllCondiments(condimentsResponse.data);
+        }
+      } catch (error) {
+        console.error('Error loading data:', error);
       }
     };
 
-    if (isOpen) {
-      loadData();
-
-      if (editingMeal) {
-        console.log('Setting form data for editing meal:', editingMeal.category);
-        setFormData({
-          name: editingMeal.name,
-          category: editingMeal.category,
-          recipe: editingMeal.recipe || ''
-        });
-
-        if (editingMeal.meal_ingredients) {
-          setSelectedIngredients(
-            editingMeal.meal_ingredients.map(mi => ({
-              ingredient_id: mi.ingredient_id,
-              quantity: mi.quantity
-            }))
-          );
-        }
-
-        if (editingMeal.dietary_tags) {
-          setSelectedDietaryTags(editingMeal.dietary_tags.map(tag => tag.tag_id));
-        }
-      } else {
-        // Reset form for new meal
-        setFormData({ name: '', category: 'Best for Breakfast', recipe: '' });
-        setSelectedIngredients([]);
-        setSelectedDietaryTags([]);
-        setSelectedImage(null);
-      }
-    }
-  }, [isOpen, editingMeal]);
+    loadData();
+  }, []);
 
   // Listen for ingredient updates from the management modal
   useEffect(() => {
@@ -114,10 +94,28 @@ export const CreateEditMealModal: React.FC<CreateEditMealModalProps> = ({
     };
   }, []);
 
-  // Calculate estimated price whenever ingredients change
+  // Listen for condiment updates from the management modal
+  useEffect(() => {
+    const handleCondimentUpdate = () => {
+      // Trigger refresh for condiment sections by dispatching an event
+      window.dispatchEvent(new CustomEvent('condimentSaved'));
+    };
+
+    window.addEventListener('condimentSaved', handleCondimentUpdate);
+    window.addEventListener('condimentAdded', handleCondimentUpdate);
+    
+    return () => {
+      window.removeEventListener('condimentSaved', handleCondimentUpdate);
+      window.removeEventListener('condimentAdded', handleCondimentUpdate);
+    };
+  }, []);
+
+  // Calculate estimated price whenever ingredients or condiments change
   useEffect(() => {
     const calculatePrice = () => {
       let total = 0;
+      
+      // Calculate ingredient costs
       selectedIngredients.forEach(item => {
         const ingredient = allIngredients.find((ing: Ingredient) => ing.ingredient_id === item.ingredient_id);
         if (!ingredient) return;
@@ -151,11 +149,104 @@ export const CreateEditMealModal: React.FC<CreateEditMealModalProps> = ({
 
         total += quantityInKg * ingredient.price_per_kilo;
       });
+
+      // Calculate condiment costs
+      selectedCondiments.forEach(item => {
+        if (!item.quantity.trim()) return;
+        
+        const condiment = allCondiments.find((cond: Condiment) => cond.condiment_id === item.condiment_id);
+        if (!condiment) return;
+
+        const quantityStr = item.quantity.toLowerCase().trim();
+        const quantityValue = parseFloat(quantityStr.replace(/[^0-9.]/g, '')) || 0;
+        
+        // For condiments, quantity is already in the unit they're priced in
+        total += quantityValue * condiment.price_per_unit;
+      });
+      
       setEstimatedPrice(total);
     };
 
     calculatePrice();
-  }, [selectedIngredients, allIngredients]);
+  }, [selectedIngredients, selectedCondiments, allIngredients, allCondiments]);
+
+  // Handle modal open/close and basic form reset
+  useEffect(() => {
+    if (!editingMeal && isOpen) {
+      // Reset form for new meal
+      console.log('Resetting form for new meal');
+      setFormData({
+        name: '',
+        category: 'Best for Breakfast',
+        recipe: ''
+      });
+      setSelectedIngredients([]);
+      setSelectedCondiments([]);
+      setSelectedDietaryTags([]);
+      setSelectedImage(null);
+      setValidationErrors([]);
+      setShowConfirm(false);
+      setLastPopulatedMealId(null);
+    } else if (editingMeal && isOpen) {
+      // Clear validation errors when opening for edit
+      setValidationErrors([]);
+      setShowConfirm(false);
+    }
+  }, [editingMeal, isOpen]);
+
+  // Sync form data when external data loads and we have an editing meal that needs to be populated
+  useEffect(() => {
+    if (editingMeal && isOpen && lastPopulatedMealId !== editingMeal.meal_id) {
+      // Check if all required data is loaded
+      const dataLoaded = dietaryTags.length > 0 && allIngredients.length > 0 && allCondiments.length > 0;
+      
+      if (dataLoaded) {
+        console.log('All data loaded, populating form with editing meal:', editingMeal);
+        
+        // Populate form data
+        setFormData({
+          name: editingMeal.name || '',
+          category: editingMeal.category || 'Best for Breakfast',
+          recipe: editingMeal.recipe || ''
+        });
+
+        // Populate ingredients
+        if (editingMeal.meal_ingredients && editingMeal.meal_ingredients.length > 0) {
+          const ingredients = editingMeal.meal_ingredients.map(mi => ({
+            ingredient_id: mi.ingredient_id,
+            quantity: mi.quantity
+          }));
+          setSelectedIngredients(ingredients);
+        } else {
+          setSelectedIngredients([]);
+        }
+
+        // Populate condiments
+        if (editingMeal.meal_condiments && editingMeal.meal_condiments.length > 0) {
+          const condiments = editingMeal.meal_condiments.map(mc => ({
+            condiment_id: mc.condiment_id,
+            quantity: mc.quantity
+          }));
+          setSelectedCondiments(condiments);
+        } else {
+          setSelectedCondiments([]);
+        }
+
+        // Populate dietary tags
+        if (editingMeal.dietary_tags && editingMeal.dietary_tags.length > 0) {
+          const tagIds = editingMeal.dietary_tags.map(dt => dt.tag_id);
+          setSelectedDietaryTags(tagIds);
+        } else {
+          setSelectedDietaryTags([]);
+        }
+
+        setSelectedImage(null);
+        setValidationErrors([]);
+        setShowConfirm(false);
+        setLastPopulatedMealId(editingMeal.meal_id);
+      }
+    }
+  }, [dietaryTags.length, allIngredients.length, allCondiments.length, editingMeal?.meal_id, isOpen, lastPopulatedMealId]);
 
   // Derived ingredient categories present
   const ingredientCategoryCoverage = useMemo(() => {
@@ -259,6 +350,7 @@ export const CreateEditMealModal: React.FC<CreateEditMealModalProps> = ({
         recipe: formData.recipe.trim() || undefined,
         image_url: imageUrl,
         ingredients: selectedIngredients.filter(item => item.quantity.trim()),
+        condiments: selectedCondiments.filter(item => item.quantity.trim()),
         dietary_tag_ids: selectedDietaryTags
       };
 
@@ -303,6 +395,24 @@ export const CreateEditMealModal: React.FC<CreateEditMealModalProps> = ({
     );
   };
 
+  const handleCondimentSelect = (condiment: Condiment) => {
+    if (!selectedCondiments.some(item => item.condiment_id === condiment.condiment_id)) {
+      setSelectedCondiments(prev => [...prev, { condiment_id: condiment.condiment_id, quantity: '' }]);
+    }
+  };
+
+  const handleCondimentQuantityChange = (condimentId: number, quantity: string) => {
+    setSelectedCondiments(prev =>
+      prev.map(item =>
+        item.condiment_id === condimentId ? { ...item, quantity } : item
+      )
+    );
+  };
+
+  const handleCondimentRemove = (condimentId: number) => {
+    setSelectedCondiments(prev => prev.filter(item => item.condiment_id !== condimentId));
+  };
+
   const handleDietaryTagToggle = (tagId: number) => {
     setSelectedDietaryTags(prev =>
       prev.includes(tagId)
@@ -331,10 +441,39 @@ export const CreateEditMealModal: React.FC<CreateEditMealModalProps> = ({
     <div className="fixed inset-0 bg-black/20 animate-in fade-in duration-200 backdrop-blur-sm flex items-center justify-center z-50 p-4">
       <div className="bg-white rounded-xl max-w-6xl w-full max-h-[90vh] overflow-hidden flex flex-col">
         {/* Header */}
-        <div className="flex justify-between items-center p-6 border-b border-gray-200">
-          <h2 className="text-xl font-semibold text-gray-900">
-            {editingMeal ? 'Edit Meal' : 'Create New Meal'}
-          </h2>
+        <div className="flex justify-between items-center p-6 border-b border-gray-200 bg-gradient-to-r from-white to-gray-50">
+          <div className="flex items-center gap-4">
+            <h2 className="text-xl font-semibold text-gray-900">
+              {editingMeal ? 'Edit Meal' : 'Create New Meal'}
+            </h2>
+            {/* Enhanced Pricing Indicator */}
+            <div className="flex items-center gap-3">
+              <div className="h-6 w-px bg-gray-300"></div>
+              <div className="flex items-center gap-3 px-4 py-2 rounded-lg bg-gradient-to-r from-green-50 to-emerald-50 border border-green-200 shadow-sm">
+                <Calculator className="w-5 h-5 text-green-600" />
+                <div className="flex flex-col">
+                  <span className="text-xs font-medium text-green-600 uppercase tracking-wide">
+                    Total Cost
+                  </span>
+                  <span className="text-xl font-bold text-green-700">
+                    ₱{estimatedPrice.toFixed(2)}
+                  </span>
+                </div>
+                {(selectedIngredients.length > 0 || selectedCondiments.length > 0) && (
+                  <div className="text-xs text-gray-500 border-l border-gray-300 pl-3 ml-1">
+                    <div className="flex items-center gap-1">
+                      <span className="w-2 h-2 rounded-full bg-blue-400"></span>
+                      <span>Ingredients: {selectedIngredients.filter(i => i.quantity.trim()).length}</span>
+                    </div>
+                    <div className="flex items-center gap-1">
+                      <span className="w-2 h-2 rounded-full bg-purple-400"></span>
+                      <span>Condiments: {selectedCondiments.filter(c => c.quantity.trim()).length}</span>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
           <Button
             variant="ghost"
             size="sm"
@@ -507,12 +646,6 @@ export const CreateEditMealModal: React.FC<CreateEditMealModalProps> = ({
                     <Settings className="w-4 h-4 mr-1" />
                     Manage Ingredients
                   </Button>
-                  {selectedIngredients.length > 0 && (
-                    <div className="flex items-center text-sm text-gray-600">
-                      <Calculator className="w-4 h-4 mr-1" />
-                      Estimated Price: ₱{estimatedPrice.toFixed(2)}
-                    </div>
-                  )}
                 </div>
               </div>
 
@@ -565,6 +698,28 @@ export const CreateEditMealModal: React.FC<CreateEditMealModalProps> = ({
                   selectedIngredients={selectedIngredients}
                   onIngredientSelect={handleIngredientSelect}
                   onQuantityChange={handleQuantityChange}
+                />
+              </div>
+
+              {/* Condiments Section */}
+              <div className="mt-6">
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="text-lg font-semibold text-gray-900">Optional Condiments</h3>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={openCondimentManagementModal}
+                    className="text-sm"
+                  >
+                    <Settings className="w-4 h-4 mr-1" />
+                    Manage Condiments
+                  </Button>
+                </div>
+                <CondimentSection
+                  selectedCondiments={selectedCondiments}
+                  onCondimentSelect={handleCondimentSelect}
+                  onQuantityChange={handleCondimentQuantityChange}
                 />
               </div>
 
@@ -635,6 +790,47 @@ export const CreateEditMealModal: React.FC<CreateEditMealModalProps> = ({
                   </div>
                 );
               })()}
+
+              {/* Selected Condiments Overview */}
+              {selectedCondiments.some(sc => sc.quantity.trim()) && (
+                <div className="mt-6 border rounded-xl bg-gradient-to-br from-purple-50 to-white shadow-sm">
+                  <div className="flex flex-wrap items-center justify-between gap-3 px-5 py-4 border-b bg-white/70 backdrop-blur rounded-t-xl">
+                    <h4 className="font-semibold text-gray-800 text-sm tracking-wide flex items-center gap-2">
+                      <span className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-purple-600 text-white text-[11px] font-bold">
+                        {selectedCondiments.filter(sc => sc.quantity.trim()).length}
+                      </span>
+                      Selected Condiments
+                    </h4>
+                    <span className="text-xs text-gray-500">Optional seasonings</span>
+                  </div>
+                  <div className="p-5">
+                    <div className="rounded-lg border bg-white/60 backdrop-blur-sm p-3 shadow-inner">
+                      <ul className="space-y-1 max-h-44 overflow-y-auto pr-1 custom-scroll">
+                        {selectedCondiments.filter(sc => sc.quantity.trim()).map(condimentItem => {
+                          const condimentDetails = allCondiments.find(c => c.condiment_id === condimentItem.condiment_id);
+                          const condimentName = condimentDetails?.name || `Condiment ${condimentItem.condiment_id}`;
+                          return (
+                            <li key={condimentItem.condiment_id} className="group flex items-center gap-2 rounded-md border border-transparent hover:border-gray-200 bg-white/70 px-2 py-1 text-xs transition-colors">
+                              <span className="flex-1 truncate font-medium text-gray-700" title={condimentName}>{condimentName}</span>
+                              <span className="text-gray-500 font-mono text-[11px] px-1 rounded bg-gray-100">
+                                {condimentItem.quantity}
+                              </span>
+                              <button
+                                type="button"
+                                onClick={() => handleCondimentRemove(condimentItem.condiment_id)}
+                                className="opacity-60 hover:opacity-100 text-red-500 hover:text-red-600 transition-colors"
+                                aria-label={`Remove ${condimentName}`}
+                              >
+                                ×
+                              </button>
+                            </li>
+                          );
+                        })}
+                      </ul>
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
           </form>
         </div>
@@ -698,7 +894,70 @@ export const CreateEditMealModal: React.FC<CreateEditMealModalProps> = ({
                   </div>
                   <div>
                     <p className="text-xs uppercase tracking-wide text-gray-500 font-medium">Estimated Price</p>
-                    <p className="font-medium">₱{estimatedPrice.toFixed(2)}</p>
+                    <div className="space-y-1">
+                      <p className="font-medium text-lg">₱{estimatedPrice.toFixed(2)}</p>
+                      {/* Price Breakdown */}
+                      {(selectedIngredients.length > 0 || selectedCondiments.length > 0) && (() => {
+                        let ingredientCost = 0;
+                        let condimentCost = 0;
+                        
+                        // Calculate ingredient costs
+                        selectedIngredients.forEach(item => {
+                          const ingredient = allIngredients.find((ing: Ingredient) => ing.ingredient_id === item.ingredient_id);
+                          if (!ingredient) return;
+
+                          const quantityStr = item.quantity.toLowerCase().trim();
+                          let quantityInKg = 0;
+
+                          if (quantityStr.includes('kg')) {
+                            quantityInKg = parseFloat(quantityStr.replace(/[^0-9.]/g, '')) || 0;
+                          } else if (quantityStr.includes('g')) {
+                            quantityInKg = (parseFloat(quantityStr.replace(/[^0-9.]/g, '')) || 0) / 1000;
+                          } else if (quantityStr.includes('cup')) {
+                            quantityInKg = (parseFloat(quantityStr.replace(/[^0-9.]/g, '')) || 0) * 0.24;
+                          } else if (quantityStr.includes('piece')) {
+                            quantityInKg = (parseFloat(quantityStr.replace(/[^0-9.]/g, '')) || 0) * 0.1;
+                          } else if (quantityStr.includes('tbsp') || quantityStr.includes('tablespoon')) {
+                            quantityInKg = (parseFloat(quantityStr.replace(/[^0-9.]/g, '')) || 0) * 0.015;
+                          } else if (quantityStr.includes('tsp') || quantityStr.includes('teaspoon')) {
+                            quantityInKg = (parseFloat(quantityStr.replace(/[^0-9.]/g, '')) || 0) * 0.005;
+                          } else {
+                            const numValue = parseFloat(quantityStr.replace(/[^0-9.]/g, ''));
+                            if (!isNaN(numValue)) {
+                              quantityInKg = numValue / 1000;
+                            }
+                          }
+
+                          ingredientCost += quantityInKg * ingredient.price_per_kilo;
+                        });
+
+                        // Calculate condiment costs
+                        selectedCondiments.forEach(item => {
+                          if (!item.quantity.trim()) return;
+                          
+                          const condiment = allCondiments.find((cond: Condiment) => cond.condiment_id === item.condiment_id);
+                          if (!condiment) return;
+
+                          const quantityStr = item.quantity.toLowerCase().trim();
+                          const quantityValue = parseFloat(quantityStr.replace(/[^0-9.]/g, '')) || 0;
+                          
+                          condimentCost += quantityValue * condiment.price_per_unit;
+                        });
+
+                        return (
+                          <div className="flex gap-4 text-xs text-gray-600">
+                            <div className="flex items-center gap-1">
+                              <span className="w-2 h-2 rounded-full bg-blue-400"></span>
+                              <span>Ingredients: ₱{ingredientCost.toFixed(2)}</span>
+                            </div>
+                            <div className="flex items-center gap-1">
+                              <span className="w-2 h-2 rounded-full bg-purple-400"></span>
+                              <span>Condiments: ₱{condimentCost.toFixed(2)}</span>
+                            </div>
+                          </div>
+                        );
+                      })()}
+                    </div>
                   </div>
                   {formData.recipe && (
                     <div>
@@ -750,6 +1009,49 @@ export const CreateEditMealModal: React.FC<CreateEditMealModalProps> = ({
                       })}
                     </div>
                   </div>
+                  
+                  {/* Condiments Summary */}
+                  {selectedCondiments.some(sc => sc.quantity.trim()) && (
+                    <div>
+                      <p className="text-xs uppercase tracking-wide text-gray-500 font-medium mb-1">Condiments</p>
+                      <div className="rounded-md border bg-purple-50/60 backdrop-blur px-3 py-2">
+                        <p className="text-xs font-semibold tracking-wide mb-1 flex items-center gap-1 text-purple-700">
+                          Optional Seasonings 
+                          <span className="text-[10px] text-gray-400 font-medium">
+                            {selectedCondiments.filter(sc => sc.quantity.trim()).length}
+                          </span>
+                        </p>
+                        <ul className="divide-y text-[12px]">
+                          {selectedCondiments.filter(sc => sc.quantity.trim()).map(condimentItem => {
+                            // Find condiment details from the loaded condiments data
+                            const condimentDetails = allCondiments.find(c => c.condiment_id === condimentItem.condiment_id);
+                            const condimentName = condimentDetails?.name || `Condiment ${condimentItem.condiment_id}`;
+                            
+                            // Calculate individual condiment cost
+                            let itemCost = 0;
+                            if (condimentDetails && condimentItem.quantity.trim()) {
+                              const quantityValue = parseFloat(condimentItem.quantity.toLowerCase().replace(/[^0-9.]/g, '')) || 0;
+                              itemCost = quantityValue * condimentDetails.price_per_unit;
+                            }
+                            
+                            return (
+                              <li key={condimentItem.condiment_id} className="py-1 flex justify-between gap-3">
+                                <span className="truncate">{condimentName}</span>
+                                <div className="flex items-center gap-2 text-right">
+                                  <span className="text-gray-500 font-mono">
+                                    {condimentItem.quantity}
+                                  </span>
+                                  <span className="text-purple-600 font-medium text-xs">
+                                    ₱{itemCost.toFixed(2)}
+                                  </span>
+                                </div>
+                              </li>
+                            );
+                          })}
+                        </ul>
+                      </div>
+                    </div>
+                  )}
                 </div>
               </div>
               {/* Coverage Status */}

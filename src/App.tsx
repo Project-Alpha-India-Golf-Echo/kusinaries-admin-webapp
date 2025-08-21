@@ -1,7 +1,9 @@
 
 import { Toaster } from "@/components/ui/sonner"
 import { Navigate, Route, BrowserRouter as Router, Routes } from 'react-router-dom'
+import { CondimentManagementModal } from './components/CondimentManagementModal'
 import CookDetailsModal from './components/CookDetailsModal'
+import { CreateEditCondimentModal } from './components/CreateEditCondimentModal'
 import { CreateEditIngredientModal } from './components/CreateEditIngredientModal'
 import { CreateEditMealModal } from './components/CreateEditMealModal'
 import { CreateUserModal } from './components/CreateUserModal'
@@ -41,6 +43,13 @@ function AppContent() {
   onIngredientSaved,
   showIngredientManagementModal,
   closeIngredientManagementModal,
+  // Condiment modals
+  showCreateEditCondimentModal,
+  editingCondiment,
+  closeCreateEditCondimentModal,
+  onCondimentSaved,
+  showCondimentManagementModal,
+  closeCondimentManagementModal,
   showCookDetailsModal,
   selectedCook,
   closeCookDetails
@@ -106,6 +115,18 @@ function AppContent() {
         editingIngredient={editingIngredient}
         initialCategory={initialIngredientCategory}
       />
+      
+      <CondimentManagementModal
+        isOpen={showCondimentManagementModal}
+        onClose={closeCondimentManagementModal}
+      />
+      <CreateEditCondimentModal
+        isOpen={showCreateEditCondimentModal}
+        onClose={closeCreateEditCondimentModal}
+        onCondimentSaved={onCondimentSaved}
+        editingCondiment={editingCondiment}
+      />
+      
       <CookDetailsModal
         cook={selectedCook}
         open={showCookDetailsModal}
