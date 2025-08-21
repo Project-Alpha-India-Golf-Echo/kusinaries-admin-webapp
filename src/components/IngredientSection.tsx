@@ -215,9 +215,9 @@ export const IngredientSection: React.FC<IngredientSectionProps> = ({
                 {/* Top section: Image and Info */}
                 <div className="flex items-center space-x-3 mb-3">
                   <div className="w-12 h-12 bg-gradient-to-br from-gray-100 to-gray-200 rounded-xl flex items-center justify-center shadow-inner flex-shrink-0">
-                    {ingredient.image_url ? (
+                    {(ingredient as any).signed_image_url || ingredient.image_url ? (
                       <img
-                        src={ingredient.image_url}
+                        src={(ingredient as any).signed_image_url || ingredient.image_url}
                         alt={ingredient.name}
                         className="w-10 h-10 object-cover rounded-lg"
                       />

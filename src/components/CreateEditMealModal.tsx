@@ -4,9 +4,10 @@ import {
 } from "@/components/ui/file-upload";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue, } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
-import { Calculator, Loader2, Upload, X } from 'lucide-react';
+import { Calculator, Loader2, Settings, Upload, X } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { toast } from "sonner";
+import { useModal } from '../contexts/ModalContext';
 import { updateImageInStorage, uploadImageToStorage, validateImageFileForStorage } from '../lib/storageUtils';
 import { createMeal, getAllDietaryTags, getAllIngredients, updateMeal } from '../lib/supabaseQueries';
 import type { CreateMealData, DietaryTag, Ingredient, Meal, MealCategory } from '../types';
@@ -42,6 +43,8 @@ export const CreateEditMealModal: React.FC<CreateEditMealModalProps> = ({
   const [estimatedPrice, setEstimatedPrice] = useState(0);
   const [validationErrors, setValidationErrors] = useState<string[]>([]);
   const [showConfirm, setShowConfirm] = useState(false);
+
+  const { openIngredientManagementModal } = useModal();
 
   // Load dietary tags and ingredients and populate form if editing
   useEffect(() => {
@@ -92,6 +95,24 @@ export const CreateEditMealModal: React.FC<CreateEditMealModalProps> = ({
       }
     }
   }, [isOpen, editingMeal]);
+
+  // Listen for ingredient updates from the management modal
+  useEffect(() => {
+    const handleIngredientUpdate = async () => {
+      const ingredientsResult = await getAllIngredients();
+      if (ingredientsResult.success && ingredientsResult.data) {
+        setAllIngredients(ingredientsResult.data);
+      }
+    };
+
+    window.addEventListener('ingredientSaved', handleIngredientUpdate);
+    window.addEventListener('ingredientAdded', handleIngredientUpdate);
+    
+    return () => {
+      window.removeEventListener('ingredientSaved', handleIngredientUpdate);
+      window.removeEventListener('ingredientAdded', handleIngredientUpdate);
+    };
+  }, []);
 
   // Calculate estimated price whenever ingredients change
   useEffect(() => {
@@ -475,12 +496,24 @@ export const CreateEditMealModal: React.FC<CreateEditMealModalProps> = ({
               <div className="flex items-center justify-between mb-4">
 
                 <h3 className="text-lg font-semibold text-gray-900">Pinggang Pinoy Ingredients</h3>
-                {selectedIngredients.length > 0 && (
-                  <div className="flex items-center text-sm text-gray-600">
-                    <Calculator className="w-4 h-4 mr-1" />
-                    Estimated Price: ₱{estimatedPrice.toFixed(2)}
-                  </div>
-                )}
+                <div className="flex items-center gap-3">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={openIngredientManagementModal}
+                    className="text-sm"
+                  >
+                    <Settings className="w-4 h-4 mr-1" />
+                    Manage Ingredients
+                  </Button>
+                  {selectedIngredients.length > 0 && (
+                    <div className="flex items-center text-sm text-gray-600">
+                      <Calculator className="w-4 h-4 mr-1" />
+                      Estimated Price: ₱{estimatedPrice.toFixed(2)}
+                    </div>
+                  )}
+                </div>
               </div>
 
               {/* Category Coverage & Counts Indicator */}
