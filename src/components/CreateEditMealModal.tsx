@@ -2,7 +2,6 @@ import {
   FileUpload, FileUploadDropzone, FileUploadItem, FileUploadItemDelete,
   FileUploadItemMetadata, FileUploadItemPreview, FileUploadList, FileUploadTrigger,
 } from "@/components/ui/file-upload";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue, } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { Calculator, Loader2, Settings, Upload, X } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useState } from 'react';
@@ -31,7 +30,7 @@ export const CreateEditMealModal: React.FC<CreateEditMealModalProps> = ({
 }) => {
   const [formData, setFormData] = useState({
     name: '',
-    category: 'Best for Breakfast' as MealCategory,
+    category: [] as MealCategory[], // Changed to array for multiple categories
     recipe: ''
   });
 
@@ -205,7 +204,7 @@ export const CreateEditMealModal: React.FC<CreateEditMealModalProps> = ({
       console.log('Resetting form for new meal');
       setFormData({
         name: '',
-        category: 'Best for Breakfast',
+        category: [],
         recipe: ''
       });
       setSelectedIngredients([]);
@@ -234,7 +233,7 @@ export const CreateEditMealModal: React.FC<CreateEditMealModalProps> = ({
         // Populate form data
         setFormData({
           name: editingMeal.name || '',
-          category: editingMeal.category || 'Best for Breakfast',
+          category: editingMeal.category || [],
           recipe: editingMeal.recipe || ''
         });
 
@@ -322,7 +321,7 @@ export const CreateEditMealModal: React.FC<CreateEditMealModalProps> = ({
   const computeValidationErrors = () => {
     const errors: string[] = [];
     if (!formData.name.trim()) errors.push('Meal name is required');
-    if (!formData.category) errors.push('Category is required');
+    if (!formData.category || formData.category.length === 0) errors.push('At least one category is required');
     if (selectedIngredients.length === 0) errors.push('At least one ingredient is required');
   if (!allCategoriesPresent) errors.push('Include at least one Go, one Grow, and one Glow ingredient');
   if (allCategoriesPresent && !glowSubcategoriesPresent) errors.push('For Glow, include at least one Vegetable and one Fruit');
@@ -401,7 +400,7 @@ export const CreateEditMealModal: React.FC<CreateEditMealModalProps> = ({
     }
   };
 
-  const handleInputChange = (field: string, value: string) => {
+  const handleInputChange = (field: string, value: string | MealCategory[]) => {
     setFormData(prev => ({ ...prev, [field]: value }));
   };
 
@@ -552,23 +551,27 @@ export const CreateEditMealModal: React.FC<CreateEditMealModalProps> = ({
                 </div>
 
                 <div className="space-y-2">
-                  <Label htmlFor="category">Category *</Label>
-                  <Select
-                    key={`${editingMeal?.meal_id || 'new'}-${formData.category}`}
-                    value={formData.category}
-                    onValueChange={(value) => handleInputChange('category', value as MealCategory)}
-                    required
-                  >
-                    <SelectTrigger className="w-full">
-                      <SelectValue placeholder="Select category" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="Best for Breakfast">Best for Breakfast</SelectItem>
-                      <SelectItem value="Best for Lunch">Best for Lunch</SelectItem>
-                      <SelectItem value="Best for Dinner">Best for Dinner</SelectItem>
-                      <SelectItem value="Best for Snacks">Best for Snacks</SelectItem>
-                    </SelectContent>
-                  </Select>
+                  <Label htmlFor="category">Categories *</Label>
+                  <div className="grid grid-cols-2 gap-2">
+                    {(['Best for Breakfast', 'Best for Lunch', 'Best for Dinner', 'Best for Snacks'] as MealCategory[]).map((category) => (
+                      <label key={category} className="flex items-center space-x-2 p-2 border rounded cursor-pointer hover:bg-gray-50">
+                        <input
+                          type="checkbox"
+                          checked={formData.category.includes(category)}
+                          onChange={(e) => {
+                            const checked = e.target.checked;
+                            const currentCategories = formData.category;
+                            const newCategories = checked
+                              ? [...currentCategories, category]
+                              : currentCategories.filter(c => c !== category);
+                            handleInputChange('category', newCategories);
+                          }}
+                          className="rounded"
+                        />
+                        <span className="text-sm">{category}</span>
+                      </label>
+                    ))}
+                  </div>
                 </div>
 
                 {/* IMAGE UPLOAD MODULE */}

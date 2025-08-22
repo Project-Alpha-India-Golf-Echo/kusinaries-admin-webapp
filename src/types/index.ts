@@ -78,7 +78,7 @@ export interface MealIngredient {
 export interface Meal {
   meal_id: number;
   name: string;
-  category: MealCategory;
+  category: MealCategory[]; // Changed to array to support multiple categories
   recipe?: string;
   image_url?: string; // storage object path or legacy URL
   signed_image_url?: string; // transient signed URL for rendering
@@ -95,7 +95,7 @@ export interface Meal {
 
 export interface CreateMealData {
   name: string;
-  category: MealCategory;
+  category: MealCategory[]; // Changed to array to support multiple categories
   recipe?: string;
   image_url?: string; // storage object path
   ingredients: {
@@ -112,7 +112,7 @@ export interface CreateMealData {
 }
 
 export interface MealFilters {
-  category?: MealCategory;
+  category?: MealCategory; // Keep as single category for filtering simplicity
   dietary_tags?: number[];
   search?: string;
   sort_by?: 'name' | 'created_at' | 'estimated_price';
