@@ -1,17 +1,19 @@
 
 import { Archive, Loader2, Plus, Utensils } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
+import { toast } from 'sonner';
 import { MealCard } from '../components/MealCard';
 import { MealFiltersComponent } from '../components/MealFiltersComponent';
 import { Button } from '../components/ui/button';
 import { useModal } from '../contexts/ModalContext';
 import { useDocumentTitle } from '../hooks/useDocumentTitle';
 import {
-    archiveMeal,
-    getAllDietaryTags,
-    getAllMeals,
-    getArchivedMeals,
-    restoreMeal
+  archiveMeal,
+  duplicateMeal,
+  getAllDietaryTags,
+  getAllMeals,
+  getArchivedMeals,
+  restoreMeal
 } from '../lib/supabaseQueries';
 import type { DietaryTag, Meal, MealFilters } from '../types';
 
@@ -242,6 +244,18 @@ export const MealCurationPage = () => {
     setFilters({}); // Reset filters when switching views
   };
 
+  const handleDuplicateMeal = async (meal: Meal) => {
+    const id = meal.meal_id;
+    toast.loading('Duplicating meal...', { id: `dup-${id}` });
+    const result = await duplicateMeal(id);
+    if (result.success) {
+      toast.success(`Duplicated "${meal.name}"`, { id: `dup-${id}` });
+      loadInitialData();
+    } else {
+      toast.error(result.error || 'Failed to duplicate meal', { id: `dup-${id}` });
+    }
+  };
+
   return (
     <div className="min-h-screen animate-in fade-in duration-500">
         {/* Header */}
@@ -338,6 +352,7 @@ export const MealCurationPage = () => {
                 onEdit={handleEditMeal}
                 onArchive={handleArchiveMeal}
                 onRestore={showArchived ? handleRestoreMeal : undefined}
+                onDuplicate={!showArchived ? handleDuplicateMeal : undefined}
                 isArchived={showArchived}
               />
             ))}
