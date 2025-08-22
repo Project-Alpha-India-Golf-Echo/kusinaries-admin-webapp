@@ -3,7 +3,7 @@ import {
   FileUploadItemMetadata, FileUploadItemPreview, FileUploadList, FileUploadTrigger,
 } from "@/components/ui/file-upload";
 import { Textarea } from "@/components/ui/textarea";
-import { Calculator, Loader2, Settings, Upload, X } from 'lucide-react';
+import { Calculator, Loader2, Settings, Trash2, Upload, X } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { toast } from "sonner";
 import { useModal } from '../contexts/ModalContext';
@@ -46,8 +46,100 @@ export const CreateEditMealModal: React.FC<CreateEditMealModalProps> = ({
   const [validationErrors, setValidationErrors] = useState<string[]>([]);
   const [showConfirm, setShowConfirm] = useState(false);
   const [lastPopulatedMealId, setLastPopulatedMealId] = useState<number | null>(null);
+  const [showClearConfirm, setShowClearConfirm] = useState(false);
 
   const { openIngredientManagementModal, openCondimentManagementModal } = useModal();
+
+  // Cache key for localStorage
+  const CACHE_KEY = 'meal-form-cache';
+
+  // Save form data to cache
+  const saveToCache = () => {
+    if (editingMeal) return; // Don't cache when editing existing meals
+    
+    const cacheData = {
+      formData,
+      selectedIngredients,
+      selectedCondiments,
+      selectedDietaryTags,
+      timestamp: Date.now()
+    };
+    
+    try {
+      localStorage.setItem(CACHE_KEY, JSON.stringify(cacheData));
+    } catch (error) {
+      console.warn('Failed to save form data to cache:', error);
+    }
+  };
+
+  // Load form data from cache
+  const loadFromCache = () => {
+    if (editingMeal) return false; // Don't load cache when editing existing meals
+    
+    try {
+      const cached = localStorage.getItem(CACHE_KEY);
+      if (!cached) return false;
+      
+      const cacheData = JSON.parse(cached);
+      const isRecent = Date.now() - cacheData.timestamp < 24 * 60 * 60 * 1000; // 24 hours
+      
+      if (!isRecent) {
+        localStorage.removeItem(CACHE_KEY);
+        return false;
+      }
+      
+      // Only restore if there's meaningful data
+      const hasData = cacheData.formData?.name?.trim() || 
+                     cacheData.selectedIngredients?.length > 0 || 
+                     cacheData.selectedCondiments?.length > 0 || 
+                     cacheData.selectedDietaryTags?.length > 0;
+      
+      if (hasData) {
+        setFormData(cacheData.formData || { name: '', category: [], recipe: '' });
+        setSelectedIngredients(cacheData.selectedIngredients || []);
+        setSelectedCondiments(cacheData.selectedCondiments || []);
+        setSelectedDietaryTags(cacheData.selectedDietaryTags || []);
+        return true;
+      }
+    } catch (error) {
+      console.warn('Failed to load form data from cache:', error);
+      localStorage.removeItem(CACHE_KEY);
+    }
+    
+    return false;
+  };
+
+  // Clear cache
+  const clearCache = () => {
+    try {
+      localStorage.removeItem(CACHE_KEY);
+    } catch (error) {
+      console.warn('Failed to clear cache:', error);
+    }
+  };
+
+  // Clear all form data
+  const clearAllData = () => {
+    setFormData({ name: '', category: [], recipe: '' });
+    setSelectedIngredients([]);
+    setSelectedCondiments([]);
+    setSelectedDietaryTags([]);
+    setSelectedImage(null);
+    setValidationErrors([]);
+    clearCache();
+    setShowClearConfirm(false);
+  };
+
+  // Check if form has any data
+  const hasFormData = () => {
+    return formData.name.trim() || 
+           formData.recipe.trim() || 
+           formData.category.length > 0 ||
+           selectedIngredients.length > 0 || 
+           selectedCondiments.length > 0 || 
+           selectedDietaryTags.length > 0 ||
+           selectedImage !== null;
+  };
 
   // Load dietary tags and ingredients and populate form if editing
   useEffect(() => {
@@ -195,22 +287,31 @@ export const CreateEditMealModal: React.FC<CreateEditMealModalProps> = ({
     };
 
     calculatePrice();
-  }, [selectedIngredients, selectedCondiments, allIngredients, allCondiments]);
+    
+    // Save to cache whenever form data changes (but not when editing existing meal)
+    if (!editingMeal && isOpen) {
+      const timeoutId = setTimeout(saveToCache, 500); // Debounce cache saves
+      return () => clearTimeout(timeoutId);
+    }
+  }, [selectedIngredients, selectedCondiments, allIngredients, allCondiments, formData, selectedDietaryTags, editingMeal, isOpen]);
 
   // Handle modal open/close and basic form reset
   useEffect(() => {
     if (!editingMeal && isOpen) {
-      // Reset form for new meal
-      console.log('Resetting form for new meal');
-      setFormData({
-        name: '',
-        category: [],
-        recipe: ''
-      });
-      setSelectedIngredients([]);
-      setSelectedCondiments([]);
-      setSelectedDietaryTags([]);
-      setSelectedImage(null);
+      // Try to load cached data first, then reset if no cache
+      const loadedFromCache = loadFromCache();
+      if (!loadedFromCache) {
+        console.log('Resetting form for new meal');
+        setFormData({
+          name: '',
+          category: [],
+          recipe: ''
+        });
+        setSelectedIngredients([]);
+        setSelectedCondiments([]);
+        setSelectedDietaryTags([]);
+        setSelectedImage(null);
+      }
       setValidationErrors([]);
       setShowConfirm(false);
       setLastPopulatedMealId(null);
@@ -387,6 +488,7 @@ export const CreateEditMealModal: React.FC<CreateEditMealModalProps> = ({
 
       if (result.success) {
         toast.success(`Meal ${editingMeal ? 'updated' : 'created'} successfully!`);
+        clearCache(); // Clear cache on successful save
         onMealSaved();
         onClose();
       } else {
@@ -501,14 +603,27 @@ export const CreateEditMealModal: React.FC<CreateEditMealModalProps> = ({
               </div>
             </div>
           </div>
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={onClose}
-            className="p-2 hover:bg-gray-100 rounded-lg"
-          >
-            <X className="w-4 h-4" />
-          </Button>
+          <div className="flex items-center gap-2">
+            {!editingMeal && hasFormData() && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setShowClearConfirm(true)}
+                className="text-red-600 hover:text-red-700 hover:bg-red-50"
+              >
+                <Trash2 className="w-4 h-4 mr-1" />
+                Clear All
+              </Button>
+            )}
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={onClose}
+              className="p-2 hover:bg-gray-100 rounded-lg"
+            >
+              <X className="w-4 h-4" />
+            </Button>
+          </div>
         </div>
 
         {/* Content */}
@@ -1176,6 +1291,39 @@ export const CreateEditMealModal: React.FC<CreateEditMealModalProps> = ({
                   editingMeal ? 'Confirm Update' : 'Confirm Create'
                 )}
               </Button>
+            </div>
+          </div>
+        </div>
+      )}
+      
+      {/* Clear All Confirmation Dialog */}
+      {showClearConfirm && (
+        <div className="absolute inset-0 z-[70] flex items-center justify-center bg-black/40 backdrop-blur-sm p-4 animate-in fade-in">
+          <div className="bg-white rounded-xl shadow-xl w-full max-w-md">
+            <div className="px-6 py-4 border-b">
+              <h3 className="text-lg font-semibold text-gray-800">Clear All Data</h3>
+            </div>
+            <div className="p-6">
+              <p className="text-gray-600 mb-4">
+                Are you sure you want to clear all form data? This will remove all ingredients, condiments, 
+                meal details, and any cached data. This action cannot be undone.
+              </p>
+              <div className="flex gap-3">
+                <Button
+                  variant="outline"
+                  className="flex-1"
+                  onClick={() => setShowClearConfirm(false)}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  variant="destructive"
+                  className="flex-1"
+                  onClick={clearAllData}
+                >
+                  Clear All
+                </Button>
+              </div>
             </div>
           </div>
         </div>

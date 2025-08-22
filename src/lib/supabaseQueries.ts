@@ -424,11 +424,11 @@ export const fetchUsers = async (params: {
 // ============================================
 
 import type {
-  CreateMealData,
-  DietaryTag,
-  Ingredient,
-  IngredientCategory,
-  Meal
+    CreateMealData,
+    DietaryTag,
+    Ingredient,
+    IngredientCategory,
+    Meal
 } from '../types';
 
 // ===== INGREDIENT QUERIES =====
@@ -993,6 +993,84 @@ export const deleteMeal = async (id: string): Promise<{ success: boolean; error?
   } catch (error) {
     console.error('Error in deleteMeal:', error);
     return { success: false, error: 'Failed to delete meal' };
+  }
+};
+
+// Duplicate a meal (clone meal and related data) and append "(copy)" to the name
+export const duplicateMeal = async (id: number): Promise<{ success: boolean; error?: string; newMealId?: number }> => {
+  try {
+    // 1) Fetch the source meal with relations
+    const { data: src, error: fetchErr } = await supabase
+      .from('meals')
+      .select(`
+        *,
+        meal_ingredients(*),
+        meal_condiments(*),
+        meal_dietary_tags(*)
+      `)
+      .eq('meal_id', id)
+      .single();
+    if (fetchErr || !src) return { success: false, error: fetchErr?.message || 'Meal not found' };
+
+    // 2) Create the new meal
+    const newName = `${src.name} (copy)`;
+    const { data: ins, error: mealErr } = await supabase
+      .from('meals')
+      .insert({
+        name: newName,
+        category: src.category,
+        recipe: src.recipe,
+        image_url: src.image_url,
+        is_disabled: false,
+        ai_generated: false,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString()
+      })
+      .select('meal_id, name')
+      .single();
+    if (mealErr || !ins) return { success: false, error: mealErr?.message || 'Failed to create duplicate meal' };
+
+    const newMealId = ins.meal_id as number;
+
+    // 3) Clone meal_ingredients
+    const srcIngredients = (src.meal_ingredients || []).map((mi: any) => ({
+      meal_id: newMealId,
+      ingredient_id: mi.ingredient_id,
+      quantity: mi.quantity,
+    }));
+    if (srcIngredients.length) {
+      const { error } = await supabase.from('meal_ingredients').insert(srcIngredients);
+      if (error) return { success: false, error: 'Meal duplicated but failed to copy ingredients' };
+    }
+
+    // 4) Clone meal_condiments
+    const srcConds = (src.meal_condiments || []).map((mc: any) => ({
+      meal_id: newMealId,
+      condiment_id: mc.condiment_id,
+      quantity: mc.quantity,
+    }));
+    if (srcConds.length) {
+      const { error } = await supabase.from('meal_condiments').insert(srcConds);
+      if (error) return { success: false, error: 'Meal duplicated but failed to copy condiments' };
+    }
+
+    // 5) Clone meal_dietary_tags
+    const srcTags = (src.meal_dietary_tags || []).map((mt: any) => ({
+      meal_id: newMealId,
+      tag_id: mt.tag_id,
+    }));
+    if (srcTags.length) {
+      const { error } = await supabase.from('meal_dietary_tags').insert(srcTags);
+      if (error) return { success: false, error: 'Meal duplicated but failed to copy dietary tags' };
+    }
+
+    // 6) Log activity
+    await createActivityLogEntry('meal', newMealId, newName, 'created', { duplicated_from: id });
+
+    return { success: true, newMealId };
+  } catch (e: any) {
+    console.error('Error in duplicateMeal:', e);
+    return { success: false, error: 'Failed to duplicate meal' };
   }
 };
 

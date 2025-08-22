@@ -1,24 +1,26 @@
-import { Archive, Clock, Edit, RotateCcw, Tag, Utensils } from 'lucide-react';
+import { Archive, Clock, Copy, Edit, RotateCcw, Settings, Tag, Utensils } from 'lucide-react';
 import React from 'react';
 import type { Meal } from '../types';
 import {
-    AlertDialog,
-    AlertDialogAction,
-    AlertDialogCancel,
-    AlertDialogContent,
-    AlertDialogDescription,
-    AlertDialogFooter,
-    AlertDialogHeader,
-    AlertDialogTitle,
-    AlertDialogTrigger,
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
 } from './ui/alert-dialog';
 import { Button } from './ui/button';
+import { Popover, PopoverContent, PopoverTrigger } from './ui/popover';
 
 interface MealCardProps {
   meal: Meal;
   onEdit: (meal: Meal) => void;
   onArchive: (mealId: number) => void;
   onRestore?: (mealId: number) => void;
+  onDuplicate?: (meal: Meal) => void;
   isArchived?: boolean;
 }
 
@@ -42,6 +44,7 @@ export const MealCard: React.FC<MealCardProps> = ({
   onEdit,
   onArchive,
   onRestore,
+  onDuplicate,
   isArchived = false
 }) => {
   const formatDate = (dateString: string) => {
@@ -279,80 +282,93 @@ export const MealCard: React.FC<MealCardProps> = ({
         )}
 
         {/* Actions */}
-        <div className="flex space-x-2">
-          <Button
-            size="sm"
-            variant="outline"
-            onClick={() => onEdit(meal)}
-            className="flex-1 hover:bg-blue-50 hover:border-blue-300 hover:text-blue-700"
-          >
-            <Edit className="w-3 h-3 mr-1" />
-            Edit
-          </Button>
-          
-          {isArchived ? (
-            onRestore && (
-              <AlertDialog>
-                <AlertDialogTrigger asChild>
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    className="flex-1 hover:bg-green-50 hover:border-green-300 hover:text-green-700"
-                  >
-                    <RotateCcw className="w-3 h-3 mr-1" />
-                    Restore
-                  </Button>
-                </AlertDialogTrigger>
-                <AlertDialogContent>
-                  <AlertDialogHeader>
-                    <AlertDialogTitle>Restore Meal</AlertDialogTitle>
-                    <AlertDialogDescription>
-                      Are you sure you want to restore "{meal.name}"? The meal will be moved back to the active meals section.
-                    </AlertDialogDescription>
-                  </AlertDialogHeader>
-                  <AlertDialogFooter>
-                    <AlertDialogCancel>Cancel</AlertDialogCancel>
-                    <AlertDialogAction 
-                      onClick={() => onRestore(meal.meal_id)}
-                      className="bg-green-600 hover:bg-green-700"
-                    >
-                      Restore Meal
-                    </AlertDialogAction>
-                  </AlertDialogFooter>
-                </AlertDialogContent>
-              </AlertDialog>
-            )
-          ) : (
-            <AlertDialog>
-              <AlertDialogTrigger asChild>
+        <div className="flex justify-end">
+          <Popover>
+            <PopoverTrigger asChild>
+              <Button size="icon" variant="outline" className="hover:bg-gray-50" aria-label="Meal actions">
+                <Settings className="w-4 h-4" />
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent className="w-48 p-2" align="end">
+              <div className="flex flex-col gap-1">
                 <Button
                   size="sm"
-                  variant="outline"
-                  className="flex-1 hover:bg-red-50 hover:border-red-300 hover:text-red-700"
+                  variant="ghost"
+                  className="justify-start"
+                  onClick={() => onEdit(meal)}
                 >
-                  <Archive className="w-3 h-3 mr-1" />
-                  Archive
+                  <Edit className="w-4 h-4 mr-2" />
+                  Edit
                 </Button>
-              </AlertDialogTrigger>
-              <AlertDialogContent>
-                <AlertDialogHeader>
-                  <AlertDialogTitle>Archive Meal</AlertDialogTitle>
-                  <AlertDialogDescription>
-                    Are you sure you want to archive "{meal.name}"? The meal will be moved to the archived section and can be restored later.
-                  </AlertDialogDescription>
-                </AlertDialogHeader>
-                <AlertDialogFooter>
-                  <AlertDialogCancel>Cancel</AlertDialogCancel>
-                  <AlertDialogAction 
-                    onClick={() => onArchive(meal.meal_id)}
-                    className="bg-red-600 hover:bg-red-700"
+                {onDuplicate && !isArchived && (
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    className="justify-start"
+                    onClick={() => onDuplicate(meal)}
                   >
-                    Archive Meal
-                  </AlertDialogAction>
-                </AlertDialogFooter>
-              </AlertDialogContent>
-            </AlertDialog>
-          )}
+                    <Copy className="w-4 h-4 mr-2" />
+                    Duplicate
+                  </Button>
+                )}
+                {isArchived ? (
+                  onRestore && (
+                    <AlertDialog>
+                      <AlertDialogTrigger asChild>
+                        <Button size="sm" variant="ghost" className="justify-start text-green-700 hover:text-green-800">
+                          <RotateCcw className="w-4 h-4 mr-2" />
+                          Restore
+                        </Button>
+                      </AlertDialogTrigger>
+                      <AlertDialogContent>
+                        <AlertDialogHeader>
+                          <AlertDialogTitle>Restore Meal</AlertDialogTitle>
+                          <AlertDialogDescription>
+                            Are you sure you want to restore "{meal.name}"? The meal will be moved back to the active meals section.
+                          </AlertDialogDescription>
+                        </AlertDialogHeader>
+                        <AlertDialogFooter>
+                          <AlertDialogCancel>Cancel</AlertDialogCancel>
+                          <AlertDialogAction
+                            onClick={() => onRestore(meal.meal_id)}
+                            className="bg-green-600 hover:bg-green-700"
+                          >
+                            Restore Meal
+                          </AlertDialogAction>
+                        </AlertDialogFooter>
+                      </AlertDialogContent>
+                    </AlertDialog>
+                  )
+                ) : (
+                  <AlertDialog>
+                    <AlertDialogTrigger asChild>
+                      <Button size="sm" variant="ghost" className="justify-start text-red-700 hover:text-red-800">
+                        <Archive className="w-4 h-4 mr-2" />
+                        Archive
+                      </Button>
+                    </AlertDialogTrigger>
+                    <AlertDialogContent>
+                      <AlertDialogHeader>
+                        <AlertDialogTitle>Archive Meal</AlertDialogTitle>
+                        <AlertDialogDescription>
+                          Are you sure you want to archive "{meal.name}"? The meal will be moved to the archived section and can be restored later.
+                        </AlertDialogDescription>
+                      </AlertDialogHeader>
+                      <AlertDialogFooter>
+                        <AlertDialogCancel>Cancel</AlertDialogCancel>
+                        <AlertDialogAction
+                          onClick={() => onArchive(meal.meal_id)}
+                          className="bg-red-600 hover:bg-red-700"
+                        >
+                          Archive Meal
+                        </AlertDialogAction>
+                      </AlertDialogFooter>
+                    </AlertDialogContent>
+                  </AlertDialog>
+                )}
+              </div>
+            </PopoverContent>
+          </Popover>
         </div>
       </div>
     </div>
