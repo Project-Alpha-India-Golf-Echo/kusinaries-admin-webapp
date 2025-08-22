@@ -72,91 +72,29 @@ export const MealCard: React.FC<MealCardProps> = ({
   };
 
   const calculateEstimatedPrice = () => {
+    // Base ingredient price
     let total = 0;
-    
-    // Calculate ingredient costs using the same logic as CreateEditMealModal
     if (meal.meal_ingredients) {
-      meal.meal_ingredients.forEach(mealIngredient => {
+      total += meal.meal_ingredients.reduce((acc, mealIngredient) => {
         const ingredient = mealIngredient.ingredient || mealIngredient.ingredients;
-        if (!ingredient) return;
-
-        const quantityStr = mealIngredient.quantity.toLowerCase().trim();
-        let quantityInKg = 0;
-
-        if (quantityStr.includes('kg')) {
-          quantityInKg = parseFloat(quantityStr.replace(/[^0-9.]/g, '')) || 0;
-        } else if (quantityStr.includes('g')) {
-          quantityInKg = (parseFloat(quantityStr.replace(/[^0-9.]/g, '')) || 0) / 1000;
-        } else if (quantityStr.includes('cup')) {
-          // Rough estimate: 1 cup ≈ 240g for most ingredients
-          quantityInKg = (parseFloat(quantityStr.replace(/[^0-9.]/g, '')) || 0) * 0.24;
-        } else if (quantityStr.includes('piece')) {
-          // Rough estimate: 1 piece ≈ 100g
-          quantityInKg = (parseFloat(quantityStr.replace(/[^0-9.]/g, '')) || 0) * 0.1;
-        } else if (quantityStr.includes('tbsp') || quantityStr.includes('tablespoon')) {
-          // 1 tablespoon ≈ 15g
-          quantityInKg = (parseFloat(quantityStr.replace(/[^0-9.]/g, '')) || 0) * 0.015;
-        } else if (quantityStr.includes('tsp') || quantityStr.includes('teaspoon')) {
-          // 1 teaspoon ≈ 5g
-          quantityInKg = (parseFloat(quantityStr.replace(/[^0-9.]/g, '')) || 0) * 0.005;
-        } else {
-          // If no unit specified, assume grams
-          const numValue = parseFloat(quantityStr.replace(/[^0-9.]/g, ''));
-          if (!isNaN(numValue)) {
-            quantityInKg = numValue / 1000;
-          }
-        }
-
-        total += quantityInKg * ingredient.price_per_kilo;
-      });
+        if (!ingredient) return acc;
+        const quantity = parseFloat(mealIngredient.quantity) || 0;
+        const pricePerKilo = ingredient.price_per_kilo || 0;
+        const quantityInKilos = quantity > 10 ? quantity / 1000 : quantity;
+        return acc + (quantityInKilos * pricePerKilo);
+      }, 0);
     }
-
-    // Calculate condiment costs using the same logic as CreateEditMealModal
+    // Add condiment pricing (quantity * price_per_unit)
     const condimentsArr = (meal as any).meal_condiments || meal.meal_condiments;
     if (condimentsArr) {
-      const convertCondimentQuantity = (raw: string, baseUnit: string): number => {
-        const q = raw.toLowerCase().trim();
-        const value = parseFloat(q.replace(/[^0-9.]/g, '')) || 0;
-        if (value === 0) return 0;
-        const has = (u: string) => q.includes(u);
-        // Volume conversions
-        if (baseUnit === 'ml') {
-          if (has('ml')) return value;
-          if (has('tbsp')) return value * 15; // 1 tbsp = 15 ml
-          if (has('tsp')) return value * 5;  // 1 tsp = 5 ml
-          return 0;
-        }
-        if (baseUnit === 'g') {
-          if (has('g')) return value;
-          if (has('tbsp')) return value * 15; // assume 1 tbsp ~15g (rough)
-          if (has('tsp')) return value * 5;  // assume 1 tsp ~5g
-          return 0;
-        }
-        if (baseUnit === 'tbsp') {
-          if (has('tbsp')) return value;
-          if (has('tsp')) return value / 3; // 1 tbsp = 3 tsp
-          if (has('ml')) return value / 15; // inverse of 15ml per tbsp
-          return 0;
-        }
-        if (baseUnit === 'tsp') {
-          if (has('tsp')) return value;
-          if (has('tbsp')) return value * 3;
-          if (has('ml')) return value / 5; // 5ml per tsp
-          return 0;
-        }
-        // piece & bottle removed from allowed units
-        return 0;
-      };
-
-      condimentsArr.forEach((mc: any) => {
-        if (!mc.quantity || !mc.quantity.trim()) return;
-        const condiment = mc.condiment || mc.condiments;
-        if (!condiment) return;
-        const converted = convertCondimentQuantity(mc.quantity, condiment.unit_type);
-        total += converted * condiment.price_per_unit;
-      });
+      total += condimentsArr.reduce((acc: number, mc: any) => {
+        const condiment = mc.condiment || mc.condiments; // possible shapes
+        if (!condiment) return acc;
+        const qty = parseFloat((mc.quantity || '').toString().replace(/[^0-9.]/g, '')) || 0;
+        const ppu = condiment.price_per_unit || 0;
+        return acc + qty * ppu;
+      }, 0);
     }
-    
     return total;
   };
 
