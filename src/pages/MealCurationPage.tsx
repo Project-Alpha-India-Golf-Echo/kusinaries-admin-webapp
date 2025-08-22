@@ -1,17 +1,17 @@
-
 import { Archive, Loader2, Plus, Utensils } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import { MealCard } from '../components/MealCard';
 import { MealFiltersComponent } from '../components/MealFiltersComponent';
+import { ServingScaleDemo } from '../components/ServingScaleDemo';
 import { Button } from '../components/ui/button';
 import { useModal } from '../contexts/ModalContext';
 import { useDocumentTitle } from '../hooks/useDocumentTitle';
 import {
-    archiveMeal,
-    getAllDietaryTags,
-    getAllMeals,
-    getArchivedMeals,
-    restoreMeal
+  archiveMeal,
+  getAllDietaryTags,
+  getAllMeals,
+  getArchivedMeals,
+  restoreMeal
 } from '../lib/supabaseQueries';
 import type { DietaryTag, Meal, MealFilters } from '../types';
 
@@ -59,6 +59,7 @@ export const MealCurationPage = () => {
   const [filters, setFilters] = useState<MealFilters>({});
   const [isLoading, setIsLoading] = useState(true);
   const [showArchived, setShowArchived] = useState(false);
+  const [showAIGenerated, setShowAIGenerated] = useState(false);
   const [error, setError] = useState('');
 
   useDocumentTitle('Meal Curation');
@@ -73,6 +74,13 @@ export const MealCurationPage = () => {
   const filteredMeals = useMemo(() => {
     const sourceData = showArchived ? allArchivedMeals : allMeals;
     let filtered = [...sourceData];
+
+    // By default, show only non-AI generated meals unless AI filter is toggled
+    if (showAIGenerated) {
+      filtered = filtered.filter(meal => meal.ai_generated === true);
+    } else {
+      filtered = filtered.filter(meal => meal.ai_generated !== true);
+    }
 
     // Apply search filter
     if (debouncedSearch) {
@@ -150,7 +158,7 @@ export const MealCurationPage = () => {
     });
 
     return filtered;
-  }, [allMeals, allArchivedMeals, debouncedSearch, filters, showArchived]);
+  }, [allMeals, allArchivedMeals, debouncedSearch, filters, showArchived, showAIGenerated]);
 
   // Load initial data
   useEffect(() => {
@@ -244,149 +252,165 @@ export const MealCurationPage = () => {
 
   return (
     <div className="min-h-screen animate-in fade-in duration-500">
-        {/* Header */}
-        <div className="mb-8">
-          <div className="flex items-center justify-between">
-            <div>
-              <h2 className="text-3xl font-semibold text-gray-900">
-                Meal Curation {showArchived && '- Archived Meals'}
-              </h2>
-              <p className="mt-1 text-sm text-gray-500">
-                {showArchived 
-                  ? 'Manage archived meals using the Pinggang Pinoy framework'
-                  : 'Create and manage balanced meals using the Pinggang Pinoy framework'
-                }
-              </p>
-            </div>
-            <div className="flex items-center space-x-3">
-              {!showArchived && (
-                <Button
-                  onClick={openCreateMealModal}
-                  className="bg-gradient-to-r from-green-600 to-green-700 hover:from-green-700 hover:to-green-800 text-white px-5 py-2.5 rounded-lg font-medium transition-all duration-200 flex items-center space-x-2 shadow-lg hover:shadow-xl transform"
-                >
-                  <Plus className="w-4 h-4" />
-                  <span>Add New Meal</span>
-                </Button>
+      {/* Header */}
+      <div className="mb-8">
+        <div className="flex items-center justify-between">
+          <div>
+            <h2 className="text-3xl font-semibold text-gray-900">
+              Meal Curation {showArchived && '- Archived Meals'}
+            </h2>
+            <p className="mt-1 text-sm text-gray-500">
+              {showArchived 
+                ? 'Manage archived meals using the Pinggang Pinoy framework'
+                : 'Create and manage balanced meals using the Pinggang Pinoy framework'
+              }
+            </p>
+          </div>
+          <div className="flex items-center space-x-3">
+            {!showArchived && (
+              <Button
+                onClick={openCreateMealModal}
+                className="bg-gradient-to-r from-green-600 to-green-700 hover:from-green-700 hover:to-green-800 text-white px-5 py-2.5 rounded-lg font-medium transition-all duration-200 flex items-center space-x-2 shadow-lg hover:shadow-xl transform"
+              >
+                <Plus className="w-4 h-4" />
+                <span>Add New Meal</span>
+              </Button>
+            )}
+            <Button
+              variant={showAIGenerated ? "default" : "outline"}
+              onClick={() => setShowAIGenerated(v => !v)}
+              className="px-4 py-2 rounded-lg font-medium transition-all duration-200 flex items-center space-x-2"
+            >
+              <span>{showAIGenerated ? "Showing AI Meals" : "Show AI Meals"}</span>
+            </Button>
+          </div>
+        </div>
+      </div>
+
+      {/* Error Display */}
+      {error && (
+        <div className="mb-6 bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg">
+          {error}
+        </div>
+      )}
+
+      {/* Filters */}
+      <MealFiltersComponent
+        filters={filters}
+        onFiltersChange={setFilters}
+        dietaryTags={dietaryTags}
+        showArchived={showArchived}
+        onToggleArchived={handleToggleArchived}
+      />
+
+      {/* Content */}
+      {isLoading ? (
+        <div className="bg-white rounded-xl border border-gray-200 shadow-sm">
+          <div className="p-12 text-center">
+            <Loader2 className="w-8 h-8 mx-auto text-gray-400 mb-4 animate-spin" />
+            <h3 className="text-lg font-semibold text-gray-900 mb-2">Loading meals...</h3>
+            <p className="text-gray-600">Please wait while we fetch your meal library.</p>
+          </div>
+        </div>
+      ) : filteredMeals.length === 0 ? (
+        <div className="bg-white rounded-xl border border-gray-200 shadow-sm">
+          <div className="p-12 text-center">
+            <div className="w-16 h-16 mx-auto text-gray-400 mb-6">
+              {showArchived ? (
+                <Archive className="w-full h-full" />
+              ) : (
+                <Utensils className="w-full h-full" />
               )}
+            </div>
+            <h3 className="text-lg font-semibold text-gray-900 mb-2">
+              {showArchived ? 'No Archived Meals' : 'No Meals Found'}
+            </h3>
+            <p className="text-gray-600 mb-6 max-w-md mx-auto">
+              {showArchived 
+                ? 'You haven\'t archived any meals yet. Archived meals will appear here.'
+                : Object.keys(filters).length > 0 
+                  ? 'No meals match your current filters. Try adjusting your search criteria.'
+                  : 'Start building your meal library by creating your first balanced meal using the Pinggang Pinoy framework.'
+              }
+            </p>
+            {!showArchived && Object.keys(filters).length === 0 && (
+              <Button
+                onClick={openCreateMealModal}
+                className="bg-gradient-to-r from-green-600 to-green-700 hover:from-green-700 hover:to-green-800"
+              >
+                <Plus className="w-4 h-4 mr-2" />
+                Create Your First Meal
+              </Button>
+            )}
+          </div>
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+          {filteredMeals.map((meal: Meal) => (
+            <MealCard
+              key={meal.meal_id}
+              meal={meal}
+              onEdit={handleEditMeal}
+              onArchive={handleArchiveMeal}
+              onRestore={showArchived ? handleRestoreMeal : undefined}
+              isArchived={showArchived}
+            />
+          ))}
+        </div>
+      )}
+
+      {/* Meal Stats Footer */}
+      {filteredMeals.length > 0 && (
+        <div className="mt-8 bg-gradient-to-r from-green-50 to-green-100 rounded-xl p-6 border border-green-200">
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-4 text-center">
+            <div>
+              <div className="text-2xl font-bold text-green-800">{filteredMeals.length}</div>
+
+          {/* Lightweight scaling preview for the first visible meal (admin-only demo) */}
+          {filteredMeals.length > 0 && (
+            <div className="mt-8">
+              <h3 className="text-lg font-semibold text-gray-900 mb-2">Serving Scale Demo</h3>
+              <p className="text-sm text-gray-600 mb-3">Preview scaled quantities per age group or a family aggregate using the first meal in the current list.</p>
+              <ServingScaleDemo meal={filteredMeals[0]} />
+            </div>
+          )}
+              <div className="text-sm text-green-600">
+                {showArchived ? 'Archived Meals' : 'Total Meals'}
+              </div>
+            </div>
+            <div>
+              <div className="text-2xl font-bold text-green-800">
+                {filteredMeals.filter((m: Meal) => {
+                  return Array.isArray(m.category) 
+                    ? m.category.includes('Best for Breakfast')
+                    : m.category === 'Best for Breakfast';
+                }).length}
+              </div>
+              <div className="text-sm text-green-600">Breakfast Meals</div>
+            </div>
+            <div>
+              <div className="text-2xl font-bold text-green-800">
+                {filteredMeals.filter((m: Meal) => {
+                  return Array.isArray(m.category) 
+                    ? m.category.includes('Best for Lunch')
+                    : m.category === 'Best for Lunch';
+                }).length}
+              </div>
+              <div className="text-sm text-green-600">Lunch Meals</div>
+            </div>
+            <div>
+              <div className="text-2xl font-bold text-green-800">
+                {filteredMeals.filter((m: Meal) => {
+                  return Array.isArray(m.category) 
+                    ? m.category.includes('Best for Dinner')
+                    : m.category === 'Best for Dinner';
+                }).length}
+              </div>
+              <div className="text-sm text-green-600">Dinner Meals</div>
             </div>
           </div>
         </div>
-
-        {/* Error Display */}
-        {error && (
-          <div className="mb-6 bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg">
-            {error}
-          </div>
-        )}
-
-        {/* Filters */}
-        <MealFiltersComponent
-          filters={filters}
-          onFiltersChange={setFilters}
-          dietaryTags={dietaryTags}
-          showArchived={showArchived}
-          onToggleArchived={handleToggleArchived}
-        />
-
-        {/* Content */}
-        {isLoading ? (
-          <div className="bg-white rounded-xl border border-gray-200 shadow-sm">
-            <div className="p-12 text-center">
-              <Loader2 className="w-8 h-8 mx-auto text-gray-400 mb-4 animate-spin" />
-              <h3 className="text-lg font-semibold text-gray-900 mb-2">Loading meals...</h3>
-              <p className="text-gray-600">Please wait while we fetch your meal library.</p>
-            </div>
-          </div>
-        ) : filteredMeals.length === 0 ? (
-          <div className="bg-white rounded-xl border border-gray-200 shadow-sm">
-            <div className="p-12 text-center">
-              <div className="w-16 h-16 mx-auto text-gray-400 mb-6">
-                {showArchived ? (
-                  <Archive className="w-full h-full" />
-                ) : (
-                  <Utensils className="w-full h-full" />
-                )}
-              </div>
-              <h3 className="text-lg font-semibold text-gray-900 mb-2">
-                {showArchived ? 'No Archived Meals' : 'No Meals Found'}
-              </h3>
-              <p className="text-gray-600 mb-6 max-w-md mx-auto">
-                {showArchived 
-                  ? 'You haven\'t archived any meals yet. Archived meals will appear here.'
-                  : Object.keys(filters).length > 0 
-                    ? 'No meals match your current filters. Try adjusting your search criteria.'
-                    : 'Start building your meal library by creating your first balanced meal using the Pinggang Pinoy framework.'
-                }
-              </p>
-              {!showArchived && Object.keys(filters).length === 0 && (
-                <Button
-                  onClick={openCreateMealModal}
-                  className="bg-gradient-to-r from-green-600 to-green-700 hover:from-green-700 hover:to-green-800"
-                >
-                  <Plus className="w-4 h-4 mr-2" />
-                  Create Your First Meal
-                </Button>
-              )}
-            </div>
-          </div>
-        ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-            {filteredMeals.map((meal: Meal) => (
-              <MealCard
-                key={meal.meal_id}
-                meal={meal}
-                onEdit={handleEditMeal}
-                onArchive={handleArchiveMeal}
-                onRestore={showArchived ? handleRestoreMeal : undefined}
-                isArchived={showArchived}
-              />
-            ))}
-          </div>
-        )}
-
-        {/* Meal Stats Footer */}
-        {filteredMeals.length > 0 && (
-          <div className="mt-8 bg-gradient-to-r from-green-50 to-green-100 rounded-xl p-6 border border-green-200">
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-4 text-center">
-              <div>
-                <div className="text-2xl font-bold text-green-800">{filteredMeals.length}</div>
-                <div className="text-sm text-green-600">
-                  {showArchived ? 'Archived Meals' : 'Total Meals'}
-                </div>
-              </div>
-              <div>
-                <div className="text-2xl font-bold text-green-800">
-                  {filteredMeals.filter((m: Meal) => {
-                    return Array.isArray(m.category) 
-                      ? m.category.includes('Best for Breakfast')
-                      : m.category === 'Best for Breakfast';
-                  }).length}
-                </div>
-                <div className="text-sm text-green-600">Breakfast Meals</div>
-              </div>
-              <div>
-                <div className="text-2xl font-bold text-green-800">
-                  {filteredMeals.filter((m: Meal) => {
-                    return Array.isArray(m.category) 
-                      ? m.category.includes('Best for Lunch')
-                      : m.category === 'Best for Lunch';
-                  }).length}
-                </div>
-                <div className="text-sm text-green-600">Lunch Meals</div>
-              </div>
-              <div>
-                <div className="text-2xl font-bold text-green-800">
-                  {filteredMeals.filter((m: Meal) => {
-                    return Array.isArray(m.category) 
-                      ? m.category.includes('Best for Dinner')
-                      : m.category === 'Best for Dinner';
-                  }).length}
-                </div>
-                <div className="text-sm text-green-600">Dinner Meals</div>
-              </div>
-            </div>
-          </div>
-        )}
-      </div>
+      )}
+    </div>
   );
 };

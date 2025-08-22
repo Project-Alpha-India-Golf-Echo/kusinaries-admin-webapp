@@ -424,11 +424,11 @@ export const fetchUsers = async (params: {
 // ============================================
 
 import type {
-  CreateMealData,
-  DietaryTag,
-  Ingredient,
-  IngredientCategory,
-  Meal
+    CreateMealData,
+    DietaryTag,
+    Ingredient,
+    IngredientCategory,
+    Meal
 } from '../types';
 
 // ===== INGREDIENT QUERIES =====
@@ -700,7 +700,6 @@ export const getAllMeals = async (): Promise<{ success: boolean; data?: Meal[]; 
         )
       `)
       .eq('is_disabled', false) // Only get active (non-archived) meals
-      .eq('ai_generated', false) // Only get manually created meals, exclude AI-generated
       .order('created_at', { ascending: false });
 
     if (error) {
