@@ -7,11 +7,11 @@ import { Button } from '../components/ui/button';
 import { useModal } from '../contexts/ModalContext';
 import { useDocumentTitle } from '../hooks/useDocumentTitle';
 import {
-  archiveMeal,
-  getAllDietaryTags,
-  getAllMeals,
-  getArchivedMeals,
-  restoreMeal
+    archiveMeal,
+    getAllDietaryTags,
+    getAllMeals,
+    getArchivedMeals,
+    restoreMeal
 } from '../lib/supabaseQueries';
 import type { DietaryTag, Meal, MealFilters } from '../types';
 
@@ -85,7 +85,13 @@ export const MealCurationPage = () => {
 
     // Apply category filter
     if (filters.category) {
-      filtered = filtered.filter(meal => meal.category === filters.category);
+      const categoryToFilter = filters.category;
+      filtered = filtered.filter(meal => {
+        if (Array.isArray(meal.category)) {
+          return meal.category.includes(categoryToFilter);
+        }
+        return meal.category === categoryToFilter;
+      });
     }
 
     // Apply dietary tags filter
@@ -350,19 +356,31 @@ export const MealCurationPage = () => {
               </div>
               <div>
                 <div className="text-2xl font-bold text-green-800">
-                  {filteredMeals.filter((m: Meal) => m.category === 'Best for Breakfast').length}
+                  {filteredMeals.filter((m: Meal) => {
+                    return Array.isArray(m.category) 
+                      ? m.category.includes('Best for Breakfast')
+                      : m.category === 'Best for Breakfast';
+                  }).length}
                 </div>
                 <div className="text-sm text-green-600">Breakfast Meals</div>
               </div>
               <div>
                 <div className="text-2xl font-bold text-green-800">
-                  {filteredMeals.filter((m: Meal) => m.category === 'Best for Lunch').length}
+                  {filteredMeals.filter((m: Meal) => {
+                    return Array.isArray(m.category) 
+                      ? m.category.includes('Best for Lunch')
+                      : m.category === 'Best for Lunch';
+                  }).length}
                 </div>
                 <div className="text-sm text-green-600">Lunch Meals</div>
               </div>
               <div>
                 <div className="text-2xl font-bold text-green-800">
-                  {filteredMeals.filter((m: Meal) => m.category === 'Best for Dinner').length}
+                  {filteredMeals.filter((m: Meal) => {
+                    return Array.isArray(m.category) 
+                      ? m.category.includes('Best for Dinner')
+                      : m.category === 'Best for Dinner';
+                  }).length}
                 </div>
                 <div className="text-sm text-green-600">Dinner Meals</div>
               </div>
