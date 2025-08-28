@@ -486,8 +486,14 @@ export const CreateEditMealModal: React.FC<CreateEditMealModalProps> = ({
     if (!formData.name.trim()) errors.push('Meal name is required');
     if (!formData.category || formData.category.length === 0) errors.push('At least one category is required');
     if (selectedIngredients.length === 0) errors.push('At least one ingredient is required');
-  if (!allCategoriesPresent) errors.push('Include at least one Go, one Grow, and one Glow ingredient');
-  if (allCategoriesPresent && !glowSubcategoriesPresent) errors.push('For Glow, include at least one Vegetable and one Fruit');
+    
+    // Lighten Go/Grow/Glow requirements for "Best for Snacks" category
+    const isBestForSnacks = formData.category.includes('Best for Snacks');
+    if (!isBestForSnacks) {
+      if (!allCategoriesPresent) errors.push('Include at least one Go, one Grow, and one Glow ingredient');
+      if (allCategoriesPresent && !glowSubcategoriesPresent) errors.push('For Glow, include at least one Vegetable and one Fruit');
+    }
+    
     const missingQty = selectedIngredients.filter(i => !i.quantity.trim());
     if (missingQty.length) errors.push('Provide quantity for every selected ingredient');
     const badFormat = selectedIngredients.filter(i => i.quantity && !quantityPattern.test(i.quantity.trim()));
@@ -696,7 +702,7 @@ export const CreateEditMealModal: React.FC<CreateEditMealModalProps> = ({
               <p className="font-semibold text-amber-900">Meal Curation Guidelines</p>
               <ul className="list-disc pl-5 space-y-1 text-amber-800">
                 <li>Portions must reflect a single serving (roughly one standard plate).</li>
-                <li>Include ALL three Pinggang Pinoy groups: at least one <strong>Go</strong> (energy), one <strong>Grow</strong> (protein), and one <strong>Glow</strong> (fruits/vegetables).</li>
+                <li>Include ALL three Pinggang Pinoy groups: at least one <strong>Go</strong> (energy), one <strong>Grow</strong> (protein), and one <strong>Glow</strong> (fruits/vegetables). <em>Note: This requirement is relaxed for "Best for Snacks" category.</em></li>
                 <li>Quantities should approximate realistic consumption and keep total cost reasonable.</li>
                 <li>Recipe / instructions (optional) should be concise and safe (no unsafe cooking steps).</li>
               </ul>
@@ -738,9 +744,20 @@ export const CreateEditMealModal: React.FC<CreateEditMealModalProps> = ({
                           onChange={(e) => {
                             const checked = e.target.checked;
                             const currentCategories = formData.category;
-                            const newCategories = checked
-                              ? [...currentCategories, category]
-                              : currentCategories.filter(c => c !== category);
+                            let newCategories: MealCategory[];
+                            
+                            if (category === 'Best for Snacks') {
+                              // If "Best for Snacks" is being checked, uncheck all others
+                              // If "Best for Snacks" is being unchecked, just remove it
+                              newCategories = checked ? ['Best for Snacks'] : [];
+                            } else {
+                              // If any other category is being checked, first remove "Best for Snacks"
+                              const categoriesWithoutSnacks = currentCategories.filter(c => c !== 'Best for Snacks');
+                              newCategories = checked
+                                ? [...categoriesWithoutSnacks, category]
+                                : categoriesWithoutSnacks.filter(c => c !== category);
+                            }
+                            
                             handleInputChange('category', newCategories);
                           }}
                           className="rounded"
