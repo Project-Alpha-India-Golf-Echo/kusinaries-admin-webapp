@@ -289,9 +289,22 @@ export const IngredientManagementModal: React.FC<IngredientManagementModalProps>
                       )}
                     </div>
 
-                    <p className="text-sm text-gray-600 mb-4">
-                      ₱{ingredient.price_per_kilo.toFixed(2)}/kg
-                    </p>
+                    <div className="space-y-1 mb-4">
+                      {/* Show price per unit and per kilo */}
+                      <p className="text-sm text-gray-600">
+                        ₱{ingredient.price_per_unit?.toFixed(2) || (ingredient.price_per_kilo || 0).toFixed(2)}/{ingredient.unit_type || 'kg'}
+                      </p>
+                      {ingredient.unit_type === 'g' && (
+                        <p className="text-xs text-gray-500">
+                          (₱{ingredient.price_per_kilo.toFixed(2)}/kg)
+                        </p>
+                      )}
+                      {ingredient.package_price && ingredient.package_quantity && (
+                        <p className="text-xs text-gray-500">
+                          Package: ₱{ingredient.package_price.toFixed(2)} for {ingredient.package_quantity}{ingredient.unit_type || 'kg'}
+                        </p>
+                      )}
+                    </div>
 
                     {/* Actions */}
                     <div className="flex gap-2">

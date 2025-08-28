@@ -206,39 +206,101 @@ export const CreateEditMealModal: React.FC<CreateEditMealModalProps> = ({
     const calculatePrice = () => {
       let total = 0;
       
-      // Calculate ingredient costs
+      // Helper function to calculate ingredient cost with proper unit conversion
+      const calculateIngredientCost = (ingredient: Ingredient, quantityStr: string): number => {
+        const quantity = quantityStr.toLowerCase().trim();
+        let quantityInBaseUnit = 0;
+        
+        // Parse quantity and convert to ingredient's base unit
+        if (ingredient.unit_type === 'kg') {
+          // Ingredient priced per kg
+          if (quantity.includes('kg')) {
+            quantityInBaseUnit = parseFloat(quantity.replace(/[^0-9.]/g, '')) || 0;
+          } else if (quantity.includes('g')) {
+            quantityInBaseUnit = (parseFloat(quantity.replace(/[^0-9.]/g, '')) || 0) / 1000;
+          } else if (quantity.includes('cup')) {
+            // Rough estimate: 1 cup ≈ 240g
+            quantityInBaseUnit = (parseFloat(quantity.replace(/[^0-9.]/g, '')) || 0) * 0.24;
+          } else if (quantity.includes('piece')) {
+            // Rough estimate: 1 piece ≈ 100g
+            quantityInBaseUnit = (parseFloat(quantity.replace(/[^0-9.]/g, '')) || 0) * 0.1;
+          } else if (quantity.includes('tbsp') || quantity.includes('tablespoon')) {
+            // 1 tablespoon ≈ 15g
+            quantityInBaseUnit = (parseFloat(quantity.replace(/[^0-9.]/g, '')) || 0) * 0.015;
+          } else if (quantity.includes('tsp') || quantity.includes('teaspoon')) {
+            // 1 teaspoon ≈ 5g
+            quantityInBaseUnit = (parseFloat(quantity.replace(/[^0-9.]/g, '')) || 0) * 0.005;
+          } else {
+            // If no unit specified, assume grams
+            const numValue = parseFloat(quantity.replace(/[^0-9.]/g, ''));
+            if (!isNaN(numValue)) {
+              quantityInBaseUnit = numValue / 1000;
+            }
+          }
+        } else {
+          // Ingredient priced per gram
+          if (quantity.includes('g')) {
+            quantityInBaseUnit = parseFloat(quantity.replace(/[^0-9.]/g, '')) || 0;
+          } else if (quantity.includes('kg')) {
+            quantityInBaseUnit = (parseFloat(quantity.replace(/[^0-9.]/g, '')) || 0) * 1000;
+          } else if (quantity.includes('cup')) {
+            // Rough estimate: 1 cup ≈ 240g
+            quantityInBaseUnit = (parseFloat(quantity.replace(/[^0-9.]/g, '')) || 0) * 240;
+          } else if (quantity.includes('piece')) {
+            // Rough estimate: 1 piece ≈ 100g
+            quantityInBaseUnit = (parseFloat(quantity.replace(/[^0-9.]/g, '')) || 0) * 100;
+          } else if (quantity.includes('tbsp') || quantity.includes('tablespoon')) {
+            // 1 tablespoon ≈ 15g
+            quantityInBaseUnit = (parseFloat(quantity.replace(/[^0-9.]/g, '')) || 0) * 15;
+          } else if (quantity.includes('tsp') || quantity.includes('teaspoon')) {
+            // 1 teaspoon ≈ 5g
+            quantityInBaseUnit = (parseFloat(quantity.replace(/[^0-9.]/g, '')) || 0) * 5;
+          } else {
+            // If no unit specified, assume grams
+            const numValue = parseFloat(quantity.replace(/[^0-9.]/g, ''));
+            if (!isNaN(numValue)) {
+              quantityInBaseUnit = numValue;
+            }
+          }
+        }
+        
+        return quantityInBaseUnit * ingredient.price_per_unit;
+      };
+      
+      // Calculate ingredient costs with new pricing structure
       selectedIngredients.forEach(item => {
         const ingredient = allIngredients.find((ing: Ingredient) => ing.ingredient_id === item.ingredient_id);
         if (!ingredient) return;
-
-        const quantityStr = item.quantity.toLowerCase().trim();
-        let quantityInKg = 0;
-
-        if (quantityStr.includes('kg')) {
-          quantityInKg = parseFloat(quantityStr.replace(/[^0-9.]/g, '')) || 0;
-        } else if (quantityStr.includes('g')) {
-          quantityInKg = (parseFloat(quantityStr.replace(/[^0-9.]/g, '')) || 0) / 1000;
-        } else if (quantityStr.includes('cup')) {
-          // Rough estimate: 1 cup ≈ 240g for most ingredients
-          quantityInKg = (parseFloat(quantityStr.replace(/[^0-9.]/g, '')) || 0) * 0.24;
-        } else if (quantityStr.includes('piece')) {
-          // Rough estimate: 1 piece ≈ 100g
-          quantityInKg = (parseFloat(quantityStr.replace(/[^0-9.]/g, '')) || 0) * 0.1;
-        } else if (quantityStr.includes('tbsp') || quantityStr.includes('tablespoon')) {
-          // 1 tablespoon ≈ 15g
-          quantityInKg = (parseFloat(quantityStr.replace(/[^0-9.]/g, '')) || 0) * 0.015;
-        } else if (quantityStr.includes('tsp') || quantityStr.includes('teaspoon')) {
-          // 1 teaspoon ≈ 5g
-          quantityInKg = (parseFloat(quantityStr.replace(/[^0-9.]/g, '')) || 0) * 0.005;
+        
+        // Use new price_per_unit system if available, fallback to price_per_kilo for backward compatibility
+        if (ingredient.price_per_unit !== undefined && ingredient.unit_type !== undefined) {
+          total += calculateIngredientCost(ingredient, item.quantity);
         } else {
-          // If no unit specified, assume grams
-          const numValue = parseFloat(quantityStr.replace(/[^0-9.]/g, ''));
-          if (!isNaN(numValue)) {
-            quantityInKg = numValue / 1000;
-          }
-        }
+          // Backward compatibility: use old calculation method
+          const quantityStr = item.quantity.toLowerCase().trim();
+          let quantityInKg = 0;
 
-        total += quantityInKg * ingredient.price_per_kilo;
+          if (quantityStr.includes('kg')) {
+            quantityInKg = parseFloat(quantityStr.replace(/[^0-9.]/g, '')) || 0;
+          } else if (quantityStr.includes('g')) {
+            quantityInKg = (parseFloat(quantityStr.replace(/[^0-9.]/g, '')) || 0) / 1000;
+          } else if (quantityStr.includes('cup')) {
+            quantityInKg = (parseFloat(quantityStr.replace(/[^0-9.]/g, '')) || 0) * 0.24;
+          } else if (quantityStr.includes('piece')) {
+            quantityInKg = (parseFloat(quantityStr.replace(/[^0-9.]/g, '')) || 0) * 0.1;
+          } else if (quantityStr.includes('tbsp') || quantityStr.includes('tablespoon')) {
+            quantityInKg = (parseFloat(quantityStr.replace(/[^0-9.]/g, '')) || 0) * 0.015;
+          } else if (quantityStr.includes('tsp') || quantityStr.includes('teaspoon')) {
+            quantityInKg = (parseFloat(quantityStr.replace(/[^0-9.]/g, '')) || 0) * 0.005;
+          } else {
+            const numValue = parseFloat(quantityStr.replace(/[^0-9.]/g, ''));
+            if (!isNaN(numValue)) {
+              quantityInKg = numValue / 1000;
+            }
+          }
+
+          total += quantityInKg * ingredient.price_per_kilo;
+        }
       });
 
       // Calculate condiment costs (convert to condiment.unit_type)
@@ -1047,34 +1109,89 @@ export const CreateEditMealModal: React.FC<CreateEditMealModalProps> = ({
                         let ingredientCost = 0;
                         let condimentCost = 0;
                         
-                        // Calculate ingredient costs
+                        // Calculate ingredient costs with new pricing structure
                         selectedIngredients.forEach(item => {
                           const ingredient = allIngredients.find((ing: Ingredient) => ing.ingredient_id === item.ingredient_id);
                           if (!ingredient) return;
-
-                          const quantityStr = item.quantity.toLowerCase().trim();
-                          let quantityInKg = 0;
-
-                          if (quantityStr.includes('kg')) {
-                            quantityInKg = parseFloat(quantityStr.replace(/[^0-9.]/g, '')) || 0;
-                          } else if (quantityStr.includes('g')) {
-                            quantityInKg = (parseFloat(quantityStr.replace(/[^0-9.]/g, '')) || 0) / 1000;
-                          } else if (quantityStr.includes('cup')) {
-                            quantityInKg = (parseFloat(quantityStr.replace(/[^0-9.]/g, '')) || 0) * 0.24;
-                          } else if (quantityStr.includes('piece')) {
-                            quantityInKg = (parseFloat(quantityStr.replace(/[^0-9.]/g, '')) || 0) * 0.1;
-                          } else if (quantityStr.includes('tbsp') || quantityStr.includes('tablespoon')) {
-                            quantityInKg = (parseFloat(quantityStr.replace(/[^0-9.]/g, '')) || 0) * 0.015;
-                          } else if (quantityStr.includes('tsp') || quantityStr.includes('teaspoon')) {
-                            quantityInKg = (parseFloat(quantityStr.replace(/[^0-9.]/g, '')) || 0) * 0.005;
+                          
+                          // Use new price_per_unit system if available, fallback to price_per_kilo for backward compatibility
+                          if (ingredient.price_per_unit !== undefined && ingredient.unit_type !== undefined) {
+                            const calculateIngredientCost = (ingredient: Ingredient, quantityStr: string): number => {
+                              const quantity = quantityStr.toLowerCase().trim();
+                              let quantityInBaseUnit = 0;
+                              
+                              if (ingredient.unit_type === 'kg') {
+                                // Ingredient priced per kg
+                                if (quantity.includes('kg')) {
+                                  quantityInBaseUnit = parseFloat(quantity.replace(/[^0-9.]/g, '')) || 0;
+                                } else if (quantity.includes('g')) {
+                                  quantityInBaseUnit = (parseFloat(quantity.replace(/[^0-9.]/g, '')) || 0) / 1000;
+                                } else if (quantity.includes('cup')) {
+                                  quantityInBaseUnit = (parseFloat(quantity.replace(/[^0-9.]/g, '')) || 0) * 0.24;
+                                } else if (quantity.includes('piece')) {
+                                  quantityInBaseUnit = (parseFloat(quantity.replace(/[^0-9.]/g, '')) || 0) * 0.1;
+                                } else if (quantity.includes('tbsp') || quantity.includes('tablespoon')) {
+                                  quantityInBaseUnit = (parseFloat(quantity.replace(/[^0-9.]/g, '')) || 0) * 0.015;
+                                } else if (quantity.includes('tsp') || quantity.includes('teaspoon')) {
+                                  quantityInBaseUnit = (parseFloat(quantity.replace(/[^0-9.]/g, '')) || 0) * 0.005;
+                                } else {
+                                  const numValue = parseFloat(quantity.replace(/[^0-9.]/g, ''));
+                                  if (!isNaN(numValue)) {
+                                    quantityInBaseUnit = numValue / 1000;
+                                  }
+                                }
+                              } else {
+                                // Ingredient priced per gram
+                                if (quantity.includes('g')) {
+                                  quantityInBaseUnit = parseFloat(quantity.replace(/[^0-9.]/g, '')) || 0;
+                                } else if (quantity.includes('kg')) {
+                                  quantityInBaseUnit = (parseFloat(quantity.replace(/[^0-9.]/g, '')) || 0) * 1000;
+                                } else if (quantity.includes('cup')) {
+                                  quantityInBaseUnit = (parseFloat(quantity.replace(/[^0-9.]/g, '')) || 0) * 240;
+                                } else if (quantity.includes('piece')) {
+                                  quantityInBaseUnit = (parseFloat(quantity.replace(/[^0-9.]/g, '')) || 0) * 100;
+                                } else if (quantity.includes('tbsp') || quantity.includes('tablespoon')) {
+                                  quantityInBaseUnit = (parseFloat(quantity.replace(/[^0-9.]/g, '')) || 0) * 15;
+                                } else if (quantity.includes('tsp') || quantity.includes('teaspoon')) {
+                                  quantityInBaseUnit = (parseFloat(quantity.replace(/[^0-9.]/g, '')) || 0) * 5;
+                                } else {
+                                  const numValue = parseFloat(quantity.replace(/[^0-9.]/g, ''));
+                                  if (!isNaN(numValue)) {
+                                    quantityInBaseUnit = numValue;
+                                  }
+                                }
+                              }
+                              
+                              return quantityInBaseUnit * ingredient.price_per_unit;
+                            };
+                            
+                            ingredientCost += calculateIngredientCost(ingredient, item.quantity);
                           } else {
-                            const numValue = parseFloat(quantityStr.replace(/[^0-9.]/g, ''));
-                            if (!isNaN(numValue)) {
-                              quantityInKg = numValue / 1000;
-                            }
-                          }
+                            // Backward compatibility: use old calculation method
+                            const quantityStr = item.quantity.toLowerCase().trim();
+                            let quantityInKg = 0;
 
-                          ingredientCost += quantityInKg * ingredient.price_per_kilo;
+                            if (quantityStr.includes('kg')) {
+                              quantityInKg = parseFloat(quantityStr.replace(/[^0-9.]/g, '')) || 0;
+                            } else if (quantityStr.includes('g')) {
+                              quantityInKg = (parseFloat(quantityStr.replace(/[^0-9.]/g, '')) || 0) / 1000;
+                            } else if (quantityStr.includes('cup')) {
+                              quantityInKg = (parseFloat(quantityStr.replace(/[^0-9.]/g, '')) || 0) * 0.24;
+                            } else if (quantityStr.includes('piece')) {
+                              quantityInKg = (parseFloat(quantityStr.replace(/[^0-9.]/g, '')) || 0) * 0.1;
+                            } else if (quantityStr.includes('tbsp') || quantityStr.includes('tablespoon')) {
+                              quantityInKg = (parseFloat(quantityStr.replace(/[^0-9.]/g, '')) || 0) * 0.015;
+                            } else if (quantityStr.includes('tsp') || quantityStr.includes('teaspoon')) {
+                              quantityInKg = (parseFloat(quantityStr.replace(/[^0-9.]/g, '')) || 0) * 0.005;
+                            } else {
+                              const numValue = parseFloat(quantityStr.replace(/[^0-9.]/g, ''));
+                              if (!isNaN(numValue)) {
+                                quantityInKg = numValue / 1000;
+                              }
+                            }
+
+                            ingredientCost += quantityInKg * ingredient.price_per_kilo;
+                          }
                         });
 
                         // Calculate condiment costs with conversion
