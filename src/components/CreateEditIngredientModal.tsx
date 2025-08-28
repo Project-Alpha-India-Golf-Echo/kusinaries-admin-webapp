@@ -8,7 +8,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { toast } from "sonner";
 import { updateImageInStorage, uploadImageToStorage, validateImageFileForStorage } from '../lib/storageUtils';
 import { createIngredient, updateIngredient } from '../lib/supabaseQueries';
-import type { Ingredient, IngredientCategory } from '../types';
+import type { Ingredient, IngredientCategory, IngredientUnitType } from '../types';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
 import { Label } from './ui/label';
@@ -32,7 +32,9 @@ export const CreateEditIngredientModal: React.FC<CreateEditIngredientModalProps>
     name: '',
     category: 'Go' as IngredientCategory,
     glow_subcategory: '' as '' | 'Vegetables' | 'Fruits',
-    price_per_kilo: ''
+    unit_type: 'kg' as IngredientUnitType,
+    package_price: '', // total price of the package
+    package_quantity: '' // quantity amount corresponding to that price
   });
   const [selectedImage, setSelectedImage] = useState<File | null>(null);
   const [isLoading, setIsLoading] = useState(false);
@@ -44,18 +46,23 @@ export const CreateEditIngredientModal: React.FC<CreateEditIngredientModalProps>
   useEffect(() => {
     if (isOpen) {
       if (editingIngredient) {
+        // For editing, try to use original package data if available, otherwise default
         setFormData({
           name: editingIngredient.name,
           category: editingIngredient.category,
           glow_subcategory: editingIngredient.glow_subcategory || '',
-          price_per_kilo: editingIngredient.price_per_kilo.toString()
+          unit_type: editingIngredient.unit_type || 'kg',
+          package_price: editingIngredient.package_price?.toString() || editingIngredient.price_per_unit?.toString() || editingIngredient.price_per_kilo?.toString() || '',
+          package_quantity: editingIngredient.package_quantity?.toString() || '1'
         });
       } else {
         setFormData({
           name: '',
           category: initialCategory || 'Go',
           glow_subcategory: '',
-          price_per_kilo: ''
+          unit_type: 'kg',
+          package_price: '',
+          package_quantity: ''
         });
       }
       setSelectedImage(null);
@@ -67,11 +74,20 @@ export const CreateEditIngredientModal: React.FC<CreateEditIngredientModalProps>
     setIsLoading(true);
 
     try {
-      const pricePerKilo = parseFloat(formData.price_per_kilo);
-      if (isNaN(pricePerKilo) || pricePerKilo < 0) {
-        toast.error('Please enter a valid price per kilo');
+      const packagePrice = parseFloat(formData.package_price);
+      const packageQuantity = parseFloat(formData.package_quantity);
+      
+      if (isNaN(packagePrice) || packagePrice <= 0) {
+        toast.error('Please enter a valid package price');
         return;
       }
+      
+      if (isNaN(packageQuantity) || packageQuantity <= 0) {
+        toast.error('Please enter a valid package quantity');
+        return;
+      }
+
+      const pricePerUnit = packagePrice / packageQuantity;
 
       let imageUrl = isEditing ? editingIngredient?.image_url : undefined;
 
@@ -116,13 +132,20 @@ export const CreateEditIngredientModal: React.FC<CreateEditIngredientModalProps>
         }
       }
 
+      // Calculate price_per_kilo for backward compatibility
+      const pricePerKilo = formData.unit_type === 'kg' ? pricePerUnit : pricePerUnit * 1000;
+
       let result;
       if (isEditing) {
         result = await updateIngredient(editingIngredient!.ingredient_id, {
           name: formData.name.trim(),
           category: categoryToSend,
           glow_subcategory: categoryToSend === 'Glow' ? (formData.glow_subcategory || null) : null,
+          price_per_unit: pricePerUnit,
+          unit_type: formData.unit_type,
           price_per_kilo: pricePerKilo,
+          package_price: packagePrice,
+          package_quantity: packageQuantity,
           image_url: imageUrl
         });
       } else {
@@ -130,13 +153,17 @@ export const CreateEditIngredientModal: React.FC<CreateEditIngredientModalProps>
           name: formData.name.trim(),
           category: categoryToSend,
           glow_subcategory: categoryToSend === 'Glow' ? (formData.glow_subcategory || null) : null,
+          price_per_unit: pricePerUnit,
+          unit_type: formData.unit_type,
           price_per_kilo: pricePerKilo,
+          package_price: packagePrice,
+          package_quantity: packageQuantity,
           image_url: imageUrl
         });
       }
 
       if (result.success) {
-  setFormData({ name: '', category: 'Go', glow_subcategory: '', price_per_kilo: '' });
+        setFormData({ name: '', category: 'Go', glow_subcategory: '', unit_type: 'kg', package_price: '', package_quantity: '' });
         setSelectedImage(null);
         toast.success(`Ingredient ${isEditing ? 'updated' : 'created'} successfully!`);
         onIngredientSaved();
@@ -243,18 +270,72 @@ export const CreateEditIngredientModal: React.FC<CreateEditIngredientModalProps>
           )}
 
           <div className='space-y-2'>
-            <Label htmlFor="price">Price per Kilo (₱) *</Label>
-            <Input
-              id="price"
-              type="number"
-              step="0.01"
-              min="0"
-              value={formData.price_per_kilo}
-              onChange={(e) => handleInputChange('price_per_kilo', e.target.value)}
-              placeholder="e.g., 280.00"
+            <Label htmlFor="unit_type">Package Unit *</Label>
+            <Select
+              value={formData.unit_type}
+              onValueChange={(value) => handleInputChange('unit_type', value as IngredientUnitType)}
               required
-            />
+            >
+              <SelectTrigger className="w-full">
+                <SelectValue placeholder="Select package unit" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="kg">Kilogram (kg)</SelectItem>
+                <SelectItem value="g">Gram (g)</SelectItem>
+              </SelectContent>
+            </Select>
           </div>
+
+          {/* Package Price & Quantity (derive per-unit price) */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div className="space-y-2">
+              <Label htmlFor="package_price" className="text-sm font-medium text-gray-700">
+                Package Price (₱) *
+              </Label>
+              <Input
+                id="package_price"
+                type="number"
+                step="0.01"
+                min="0"
+                value={formData.package_price}
+                onChange={(e) => handleInputChange('package_price', e.target.value)}
+                placeholder="e.g., 280"
+                required
+                className="w-full"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="package_quantity" className="text-sm font-medium text-gray-700">
+                Package Quantity ({formData.unit_type}) *
+              </Label>
+              <Input
+                id="package_quantity"
+                type="number"
+                step="0.01"
+                min="0"
+                value={formData.package_quantity}
+                onChange={(e) => handleInputChange('package_quantity', e.target.value)}
+                placeholder={formData.unit_type === 'kg' ? 'e.g., 1' : 'e.g., 1000'}
+                required
+                className="w-full"
+              />
+            </div>
+          </div>
+          {(() => {
+            const packagePrice = parseFloat(formData.package_price);
+            const packageQuantity = parseFloat(formData.package_quantity);
+            if (!isNaN(packagePrice) && packagePrice > 0 && !isNaN(packageQuantity) && packageQuantity > 0) {
+              const pricePerUnit = packagePrice / packageQuantity;
+              const pricePerKilo = formData.unit_type === 'kg' ? pricePerUnit : pricePerUnit * 1000;
+              return (
+                <div className="text-xs text-gray-600 bg-gray-50 border rounded-md p-3 space-y-1">
+                  <div>Computed price per {formData.unit_type}: <span className="font-semibold text-gray-800">₱{pricePerUnit.toFixed(4)}</span></div>
+                  <div>Equivalent price per kilo: <span className="font-semibold text-gray-800">₱{pricePerKilo.toFixed(2)}</span></div>
+                </div>
+              );
+            }
+            return null;
+          })()}
 
           <div className='space-y-2 pb-20'>
             <Label htmlFor="image">Ingredient Image (Optional)</Label>

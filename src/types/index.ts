@@ -22,6 +22,7 @@ export type UserRole = 'admin' | 'user' | 'family_head' | 'cook';
 // Meal Curation System Types
 export type MealCategory = 'Best for Breakfast' | 'Best for Lunch' | 'Best for Dinner' | 'Best for Snacks';
 export type IngredientCategory = 'Go' | 'Grow' | 'Glow';
+export type IngredientUnitType = 'kg' | 'g';
 
 export interface Ingredient {
   ingredient_id: number;
@@ -29,7 +30,11 @@ export interface Ingredient {
   category: IngredientCategory;
   image_url?: string; // storage object path or legacy URL
   signed_image_url?: string; // transient signed URL for rendering
-  price_per_kilo: number;
+  price_per_unit: number; // price per unit (either per kilo or per gram)
+  unit_type: IngredientUnitType; // 'kg' or 'g'
+  price_per_kilo: number; // calculated field for backward compatibility
+  package_price?: number; // total price of the package (optional stored)
+  package_quantity?: number; // quantity basis for per-unit (optional stored)
   is_disabled: boolean;
   created_at: string;
   glow_subcategory?: 'Vegetables' | 'Fruits' | null; // Only for category 'Glow'

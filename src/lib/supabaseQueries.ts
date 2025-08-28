@@ -428,6 +428,7 @@ import type {
     DietaryTag,
     Ingredient,
     IngredientCategory,
+    IngredientUnitType,
     Meal
 } from '../types';
 
@@ -507,7 +508,11 @@ export const createIngredient = async (ingredientData: {
   category: IngredientCategory;
   glow_subcategory?: 'Vegetables' | 'Fruits' | null;
   image_url?: string;
+  price_per_unit: number;
+  unit_type: IngredientUnitType;
   price_per_kilo: number;
+  package_price?: number;
+  package_quantity?: number;
 }): Promise<{ success: boolean; error?: string }> => {
   try {
     const { data, error } = await supabase
@@ -518,7 +523,11 @@ export const createIngredient = async (ingredientData: {
           category: ingredientData.category,
           glow_subcategory: ingredientData.category === 'Glow' ? ingredientData.glow_subcategory : null,
           image_url: ingredientData.image_url,
+          price_per_unit: ingredientData.price_per_unit,
+          unit_type: ingredientData.unit_type,
           price_per_kilo: ingredientData.price_per_kilo,
+          package_price: ingredientData.package_price,
+          package_quantity: ingredientData.package_quantity,
           created_at: new Date().toISOString()
         }
       ])
@@ -537,7 +546,7 @@ export const createIngredient = async (ingredientData: {
         data.ingredient_id,
         data.name,
         'created',
-        { category: ingredientData.category, price_per_kilo: ingredientData.price_per_kilo }
+        { category: ingredientData.category, price_per_unit: ingredientData.price_per_unit, unit_type: ingredientData.unit_type }
       );
     }
 
@@ -554,7 +563,11 @@ export const updateIngredient = async (id: number, ingredientData: {
   category?: IngredientCategory;
   glow_subcategory?: 'Vegetables' | 'Fruits' | null;
   image_url?: string;
+  price_per_unit?: number;
+  unit_type?: IngredientUnitType;
   price_per_kilo?: number;
+  package_price?: number;
+  package_quantity?: number;
 }): Promise<{ success: boolean; error?: string }> => {
   try {
     // Normalize glow_subcategory: only keep if category is Glow (if provided)
