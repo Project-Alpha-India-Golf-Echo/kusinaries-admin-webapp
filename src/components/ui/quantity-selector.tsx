@@ -55,7 +55,9 @@ export const QuantitySelector: React.FC<QuantitySelectorProps> = ({
   const handleAmountChange = (newAmount: string) => {
     // Only allow numbers and decimal points
     if (newAmount === '' || /^\d*\.?\d*$/.test(newAmount)) {
-      const newValue = newAmount && unit ? `${newAmount}${unit}` : newAmount;
+  // If no unit present yet, default to grams ('g') so we always store amount with a unit
+  const effectiveUnit = unit || 'g';
+  const newValue = newAmount ? `${newAmount}${effectiveUnit}` : '';
       onChange(newValue);
     }
   };
