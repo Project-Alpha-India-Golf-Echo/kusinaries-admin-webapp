@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { Outlet } from 'react-router-dom'
 import { BUILD, shortVersion } from '../lib/version'
+import { CacheDebugPanel } from './CacheDebugPanel'
 import { Sidebar } from './Sidebar'
 
 export const Layout = () => {
@@ -34,6 +35,9 @@ export const Layout = () => {
           </footer>
         </main>
       </div>
+
+      {/* Cache Debug Panel - only show in development */}
+      {process.env.NODE_ENV === 'development' && <CacheDebugPanel />}
     </div>
   )
 }

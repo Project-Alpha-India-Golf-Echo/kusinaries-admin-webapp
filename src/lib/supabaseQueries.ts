@@ -1,9 +1,10 @@
 import type { ActivityLog, User, UserRole } from '../types';
+import { dynamicCache, invalidateCache, staticCache, userCache, withCache } from './cache';
 import { getSignedUrls, toObjectPath } from './storageUtils';
 import { supabase } from './supabase';
 
-// Check if current user is admi
-export const isCurrentUserAdmin = async (): Promise<boolean> => {
+// Check if current user is admin (cached)
+const _isCurrentUserAdmin = async (): Promise<boolean> => {
   try {
     const { data: { user }, error: authError } = await supabase.auth.getUser();
 
@@ -29,8 +30,15 @@ export const isCurrentUserAdmin = async (): Promise<boolean> => {
   }
 };
 
-// Get current user's role
-export const getCurrentUserRole = async (): Promise<string | null> => {
+export const isCurrentUserAdmin = withCache(
+  userCache,
+  'isCurrentUserAdmin',
+  _isCurrentUserAdmin,
+  5 * 60 * 1000 // 5 minutes
+);
+
+// Get current user's role (cached)
+const _getCurrentUserRole = async (): Promise<string | null> => {
   try {
     const { data: { user }, error: authError } = await supabase.auth.getUser();
 
@@ -55,6 +63,13 @@ export const getCurrentUserRole = async (): Promise<string | null> => {
     return null;
   }
 };
+
+export const getCurrentUserRole = withCache(
+  userCache,
+  'getCurrentUserRole',
+  _getCurrentUserRole,
+  5 * 60 * 1000 // 5 minutes
+);
 
 // Create a new user account
 export const createUserAccount = async (
@@ -424,18 +439,18 @@ export const fetchUsers = async (params: {
 // ============================================
 
 import type {
-    CreateMealData,
-    DietaryTag,
-    Ingredient,
-    IngredientCategory,
-    IngredientUnitType,
-    Meal
+  CreateMealData,
+  DietaryTag,
+  Ingredient,
+  IngredientCategory,
+  IngredientUnitType,
+  Meal
 } from '../types';
 
 // ===== INGREDIENT QUERIES =====
 
-// Get all ingredients (only active/non-archived by default)
-export const getAllIngredients = async (): Promise<{ success: boolean; data?: Ingredient[]; error?: string }> => {
+// Get all ingredients (only active/non-archived by default) (cached)
+const _getAllIngredients = async (): Promise<{ success: boolean; data?: Ingredient[]; error?: string }> => {
   try {
     const { data, error } = await supabase
       .from('ingredients')
@@ -465,6 +480,13 @@ export const getAllIngredients = async (): Promise<{ success: boolean; data?: In
     return { success: false, error: 'Failed to fetch ingredients' };
   }
 };
+
+export const getAllIngredients = withCache(
+  staticCache,
+  'getAllIngredients',
+  _getAllIngredients,
+  10 * 60 * 1000 // 10 minutes TTL for ingredients (they change less frequently)
+);
 
 // Get ingredients by category (only active/non-archived by default)
 export const getIngredientsByCategory = async (category: IngredientCategory, glowSubcategory?: 'Vegetables' | 'Fruits'): Promise<{ success: boolean; data?: Ingredient[]; error?: string }> => {
@@ -550,6 +572,9 @@ export const createIngredient = async (ingredientData: {
       );
     }
 
+    // Invalidate relevant caches
+    invalidateCache('ingredientCreated');
+
     return { success: true };
   } catch (error) {
     console.error('Error in createIngredient:', error);
@@ -598,6 +623,9 @@ export const updateIngredient = async (id: number, ingredientData: {
       );
     }
 
+    // Invalidate relevant caches
+    invalidateCache('ingredientUpdated');
+
     return { success: true };
   } catch (error) {
     console.error('Error in updateIngredient:', error);
@@ -629,6 +657,9 @@ export const archiveIngredient = async (id: number): Promise<{ success: boolean;
         'archived'
       );
     }
+
+    // Invalidate relevant caches
+    invalidateCache('ingredientArchived');
 
     return { success: true };
   } catch (error) {
@@ -662,6 +693,9 @@ export const restoreIngredient = async (id: number): Promise<{ success: boolean;
       );
     }
 
+    // Invalidate relevant caches
+    invalidateCache('ingredientRestored');
+
     return { success: true };
   } catch (error) {
     console.error('Error in restoreIngredient:', error);
@@ -669,8 +703,8 @@ export const restoreIngredient = async (id: number): Promise<{ success: boolean;
   }
 };
 
-// Get archived ingredients
-export const getArchivedIngredients = async (): Promise<{ success: boolean; data?: Ingredient[]; error?: string }> => {
+// Get archived ingredients (cached)
+const _getArchivedIngredients = async (): Promise<{ success: boolean; data?: Ingredient[]; error?: string }> => {
   try {
     const { data, error } = await supabase
       .from('ingredients')
@@ -690,10 +724,18 @@ export const getArchivedIngredients = async (): Promise<{ success: boolean; data
   }
 };
 
+export const getArchivedIngredients = withCache(
+  staticCache,
+  'getArchivedIngredients',
+  _getArchivedIngredients,
+  10 * 60 * 1000 // 10 minutes TTL for archived ingredients
+);
+
 // ===== MEAL QUERIES =====
 
 // Get all meals
-export const getAllMeals = async (): Promise<{ success: boolean; data?: Meal[]; error?: string }> => {
+// Get all meals (cached)
+const _getAllMeals = async (): Promise<{ success: boolean; data?: Meal[]; error?: string }> => {
   try {
     const { data, error } = await supabase
       .from('meals')
@@ -737,6 +779,13 @@ export const getAllMeals = async (): Promise<{ success: boolean; data?: Meal[]; 
     return { success: false, error: 'Failed to fetch meals' };
   }
 };
+
+export const getAllMeals = withCache(
+  staticCache,
+  'getAllMeals',
+  _getAllMeals,
+  5 * 60 * 1000 // 5 minutes TTL for meals
+);
 
 // Get meal by ID
 export const getMealById = async (id: string): Promise<{ success: boolean; data?: Meal; error?: string }> => {
@@ -866,6 +915,9 @@ export const createMeal = async (mealData: CreateMealData): Promise<{ success: b
       { category: mealData.category, recipe: mealData.recipe }
     );
 
+    // Invalidate relevant caches
+    invalidateCache('mealCreated');
+
     return { success: true };
   } catch (error) {
     console.error('Error in createMeal:', error);
@@ -982,6 +1034,9 @@ export const updateMeal = async (id: string, mealData: Partial<CreateMealData>):
       );
     }
 
+    // Invalidate relevant caches
+    invalidateCache('mealUpdated');
+
     return { success: true };
   } catch (error) {
     console.error('Error in updateMeal:', error);
@@ -1087,8 +1142,8 @@ export const duplicateMeal = async (id: number): Promise<{ success: boolean; err
   }
 };
 
-// Get all dietary tags
-export const getAllDietaryTags = async (): Promise<{ success: boolean; data?: DietaryTag[]; error?: string }> => {
+// Get all dietary tags (cached)
+const _getAllDietaryTags = async (): Promise<{ success: boolean; data?: DietaryTag[]; error?: string }> => {
   try {
     const { data, error } = await supabase
       .from('dietary_tags')
@@ -1107,6 +1162,13 @@ export const getAllDietaryTags = async (): Promise<{ success: boolean; data?: Di
     return { success: false, error: 'Failed to get dietary tags' };
   }
 };
+
+export const getAllDietaryTags = withCache(
+  staticCache,
+  'getAllDietaryTags',
+  _getAllDietaryTags,
+  15 * 60 * 1000 // 15 minutes TTL for dietary tags (they rarely change)
+);
 
 // Create a dietary tag
 export const createDietaryTag = async (tag_name: string): Promise<{ success: boolean; data?: DietaryTag; error?: string }> => {
@@ -1150,8 +1212,8 @@ export const disableDietaryTag = async (tag_id: number): Promise<{ success: bool
   }
 };
 
-// Get archived meals (meals marked as disabled)
-export const getArchivedMeals = async (): Promise<{ success: boolean; data?: Meal[]; error?: string }> => {
+// Get archived meals (meals marked as disabled) (cached)
+const _getArchivedMeals = async (): Promise<{ success: boolean; data?: Meal[]; error?: string }> => {
   try {
     const { data, error } = await supabase
       .from('meals')
@@ -1190,6 +1252,13 @@ export const getArchivedMeals = async (): Promise<{ success: boolean; data?: Mea
   }
 };
 
+export const getArchivedMeals = withCache(
+  staticCache,
+  'getArchivedMeals',
+  _getArchivedMeals,
+  5 * 60 * 1000 // 5 minutes TTL for archived meals
+);
+
 // Archive a meal (set is_disabled to true)
 export const archiveMeal = async (id: number): Promise<{ success: boolean; error?: string }> => {
   try {
@@ -1214,6 +1283,9 @@ export const archiveMeal = async (id: number): Promise<{ success: boolean; error
         'archived'
       );
     }
+
+    // Invalidate relevant caches
+    invalidateCache('mealArchived');
 
     return { success: true };
   } catch (error) {
@@ -1246,6 +1318,9 @@ export const restoreMeal = async (id: number): Promise<{ success: boolean; error
         'restored'
       );
     }
+
+    // Invalidate relevant caches
+    invalidateCache('mealRestored');
 
     return { success: true };
   } catch (error) {
@@ -1337,7 +1412,7 @@ export const getActivityLogs = async (
 // Dashboard Statistics
 // ================================
 
-export const getDashboardStats = async (): Promise<{
+const _getDashboardStats = async (): Promise<{
   success: boolean;
   data?: {
     totalMeals: number;
@@ -1455,7 +1530,14 @@ export const getDashboardStats = async (): Promise<{
   }
 };
 
-export const getRecentActivities = async (limit: number = 5): Promise<{
+export const getDashboardStats = withCache(
+  dynamicCache,
+  'getDashboardStats',
+  _getDashboardStats,
+  2 * 60 * 1000 // 2 minutes TTL for dashboard stats
+);
+
+const _getRecentActivities = async (limit: number = 5): Promise<{
   success: boolean;
   data?: ActivityLog[];
   error?: string;
@@ -1482,6 +1564,13 @@ export const getRecentActivities = async (limit: number = 5): Promise<{
     return { success: false, error: 'Failed to fetch recent activities' };
   }
 };
+
+export const getRecentActivities = withCache(
+  dynamicCache,
+  'getRecentActivities',
+  _getRecentActivities,
+  1 * 60 * 1000 // 1 minute TTL for recent activities
+);
 
 // ================================
 // Cook Verification (Grants) Queries
