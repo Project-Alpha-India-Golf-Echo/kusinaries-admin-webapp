@@ -1,7 +1,7 @@
 import { Check, Package, Plus, Search, X as XIcon } from 'lucide-react';
 import React, { useEffect, useState } from 'react';
 import { useModal } from '../contexts/ModalContext';
-import { getIngredientsByCategory } from '../lib/supabaseQueries';
+import { getIngredientsByCategory, getIngredientsByCategoryForAdmin } from '../lib/supabaseQueries';
 import type { Ingredient, IngredientCategory } from '../types';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
@@ -12,6 +12,7 @@ interface IngredientSectionProps {
   selectedIngredients: { ingredient_id: number; quantity: string }[];
   onIngredientSelect: (ingredient: Ingredient) => void;
   onQuantityChange: (ingredientId: number, quantity: string) => void;
+  userRole?: string; // Add userRole prop to filter out cook-created ingredients for admin users
 }
 
 const getCategoryInfo = (category: IngredientCategory) => {
@@ -53,7 +54,8 @@ export const IngredientSection: React.FC<IngredientSectionProps> = ({
   category,
   selectedIngredients,
   onIngredientSelect,
-  onQuantityChange
+  onQuantityChange,
+  userRole
 }) => {
   const [ingredients, setIngredients] = useState<Ingredient[]>([]);
   const [glowTab, setGlowTab] = useState<'Vegetables' | 'Fruits'>('Vegetables');
@@ -73,7 +75,9 @@ export const IngredientSection: React.FC<IngredientSectionProps> = ({
 
   const loadIngredients = async () => {
     setIsLoading(true);
-    const result = await getIngredientsByCategory(category, category === 'Glow' ? glowTab : undefined);
+    // Use admin-filtered function for admin users to exclude cook-created ingredients
+    const ingredientsFunction = userRole === 'admin' ? getIngredientsByCategoryForAdmin : getIngredientsByCategory;
+    const result = await ingredientsFunction(category, category === 'Glow' ? glowTab : undefined);
     if (result.success && result.data) {
       setIngredients(result.data);
     }
@@ -82,7 +86,7 @@ export const IngredientSection: React.FC<IngredientSectionProps> = ({
 
   useEffect(() => {
     loadIngredients();
-  }, [category, glowTab]);
+  }, [category, glowTab, userRole]); // Re-load when userRole changes
 
   // Listen for ingredient added events
   useEffect(() => {

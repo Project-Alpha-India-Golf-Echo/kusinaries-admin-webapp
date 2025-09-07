@@ -2,15 +2,15 @@ import { Archive, Clock, Copy, Edit, RotateCcw, Settings, Tag, Utensils } from '
 import React from 'react';
 import type { Meal } from '../types';
 import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-  AlertDialogTrigger,
+    AlertDialog,
+    AlertDialogAction,
+    AlertDialogCancel,
+    AlertDialogContent,
+    AlertDialogDescription,
+    AlertDialogFooter,
+    AlertDialogHeader,
+    AlertDialogTitle,
+    AlertDialogTrigger,
 } from './ui/alert-dialog';
 import { Button } from './ui/button';
 import { Popover, PopoverContent, PopoverTrigger } from './ui/popover';
@@ -37,6 +37,33 @@ const getCategoryColor = (category: string) => {
     default:
       return 'bg-gray-100 text-gray-800 border-gray-200';
   }
+};
+
+const getStatusBadge = (meal: Meal) => {
+  // Only show status for cook-created meals
+  if (!meal.isbycook) return null;
+
+  if (meal.forreview === true) {
+    return (
+      <div className="absolute top-3 right-3 bg-yellow-100 text-yellow-800 px-2 py-1 rounded-full text-xs font-medium border border-yellow-200">
+        In Review
+      </div>
+    );
+  } else if (meal.forreview === false && meal.is_approved === true) {
+    return (
+      <div className="absolute top-3 right-3 bg-green-100 text-green-800 px-2 py-1 rounded-full text-xs font-medium border border-green-200">
+        Approved
+      </div>
+    );
+  } else if (meal.forreview === false && meal.is_approved === false && meal.rejected === true) {
+    return (
+      <div className="absolute top-3 right-3 bg-red-100 text-red-800 px-2 py-1 rounded-full text-xs font-medium border border-red-200">
+        Rejected
+      </div>
+    );
+  }
+
+  return null;
 };
 
 export const MealCard: React.FC<MealCardProps> = ({
@@ -204,6 +231,8 @@ export const MealCard: React.FC<MealCardProps> = ({
             Archived
           </div>
         )}
+
+        {!isArchived && getStatusBadge(meal)}
       </div>
 
       {/* Content */}
@@ -279,6 +308,14 @@ export const MealCard: React.FC<MealCardProps> = ({
           <p className="text-sm text-gray-600 mb-3 line-clamp-2">
             {meal.recipe}
           </p>
+        )}
+
+        {/* Rejection Reason */}
+        {meal.isbycook && meal.rejected && meal.rejection_reason && (
+          <div className="mb-3 p-3 bg-red-50 border border-red-200 rounded-lg">
+            <div className="text-xs font-medium text-red-800 mb-1">Rejection Reason:</div>
+            <div className="text-sm text-red-700">{meal.rejection_reason}</div>
+          </div>
         )}
 
         {/* Actions */}

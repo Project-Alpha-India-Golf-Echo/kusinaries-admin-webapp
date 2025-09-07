@@ -439,15 +439,14 @@ export const fetchUsers = async (params: {
 // ============================================
 
 import type {
+  CondimentUnitType,
   CreateMealData,
   DietaryTag,
   Ingredient,
   IngredientCategory,
   IngredientUnitType,
   Meal
-} from '../types';
-
-// ===== INGREDIENT QUERIES =====
+} from '../types'; // ===== INGREDIENT QUERIES =====
 
 // Get all ingredients (only active/non-archived by default) (cached)
 const _getAllIngredients = async (): Promise<{ success: boolean; data?: Ingredient[]; error?: string }> => {
@@ -488,6 +487,46 @@ export const getAllIngredients = withCache(
   10 * 60 * 1000 // 10 minutes TTL for ingredients (they change less frequently)
 );
 
+// Get all ingredients excluding cook-created ones (for admin use)
+const _getAllIngredientsForAdmin = async (): Promise<{ success: boolean; data?: Ingredient[]; error?: string }> => {
+  try {
+    const { data, error } = await supabase
+      .from('ingredients')
+      .select('*')
+      .eq('is_disabled', false)
+      .or('isbycook.is.null,isbycook.eq.false') // Exclude cook-created ingredients
+      .order('name');
+
+    if (error) {
+      console.error('Error fetching admin ingredients:', error);
+      return { success: false, error: error.message };
+    }
+
+    // Attach signed URLs for private storage
+    const keys = (data || [])
+      .map((i: any) => i.image_url)
+      .filter(Boolean)
+      .map((u: string) => toObjectPath(u));
+    const signedMap = await getSignedUrls(keys);
+    const enriched = (data || []).map((i: any) => ({
+      ...i,
+      signed_image_url: i.image_url ? signedMap[toObjectPath(i.image_url)] : undefined,
+    }));
+
+    return { success: true, data: enriched };
+  } catch (error) {
+    console.error('Error in getAllIngredientsForAdmin:', error);
+    return { success: false, error: 'Failed to fetch admin ingredients' };
+  }
+};
+
+export const getAllIngredientsForAdmin = withCache(
+  staticCache,
+  'getAllIngredientsForAdmin',
+  _getAllIngredientsForAdmin,
+  10 * 60 * 1000 // 10 minutes TTL for admin ingredients
+);
+
 // Get ingredients by category (only active/non-archived by default)
 export const getIngredientsByCategory = async (category: IngredientCategory, glowSubcategory?: 'Vegetables' | 'Fruits'): Promise<{ success: boolean; data?: Ingredient[]; error?: string }> => {
   try {
@@ -524,6 +563,43 @@ export const getIngredientsByCategory = async (category: IngredientCategory, glo
   }
 };
 
+// Get ingredients by category excluding cook-created ones (for admin use)
+export const getIngredientsByCategoryForAdmin = async (category: IngredientCategory, glowSubcategory?: 'Vegetables' | 'Fruits'): Promise<{ success: boolean; data?: Ingredient[]; error?: string }> => {
+  try {
+    let query = supabase
+      .from('ingredients')
+      .select('*')
+      .eq('category', category)
+      .eq('is_disabled', false)
+      .or('isbycook.is.null,isbycook.eq.false'); // Exclude cook-created ingredients
+
+    if (category === 'Glow' && glowSubcategory) {
+      query = query.eq('glow_subcategory', glowSubcategory);
+    }
+
+    const { data, error } = await query.order('name');
+
+    if (error) {
+      console.error('Error fetching admin ingredients by category:', error);
+      return { success: false, error: error.message };
+    }
+
+    const keys = (data || [])
+      .map((i: any) => i.image_url)
+      .filter(Boolean)
+      .map((u: string) => toObjectPath(u));
+    const signedMap = await getSignedUrls(keys);
+    const enriched = (data || []).map((i: any) => ({
+      ...i,
+      signed_image_url: i.image_url ? signedMap[toObjectPath(i.image_url)] : undefined,
+    }));
+    return { success: true, data: enriched };
+  } catch (error) {
+    console.error('Error in getIngredientsByCategoryForAdmin:', error);
+    return { success: false, error: 'Failed to fetch admin ingredients by category' };
+  }
+};
+
 // Create a new ingredient
 export const createIngredient = async (ingredientData: {
   name: string;
@@ -535,6 +611,8 @@ export const createIngredient = async (ingredientData: {
   price_per_kilo: number;
   package_price?: number;
   package_quantity?: number;
+  isbycook?: boolean;
+  profile_id?: string;
 }): Promise<{ success: boolean; error?: string }> => {
   try {
     const { data, error } = await supabase
@@ -550,7 +628,9 @@ export const createIngredient = async (ingredientData: {
           price_per_kilo: ingredientData.price_per_kilo,
           package_price: ingredientData.package_price,
           package_quantity: ingredientData.package_quantity,
-          created_at: new Date().toISOString()
+          created_at: new Date().toISOString(),
+          ...(ingredientData.isbycook !== undefined ? { isbycook: ingredientData.isbycook } : {}),
+          ...(ingredientData.profile_id ? { profile_id: ingredientData.profile_id } : {})
         }
       ])
       .select('ingredient_id, name')
@@ -741,6 +821,7 @@ const _getAllMeals = async (): Promise<{ success: boolean; data?: Meal[]; error?
       .from('meals')
       .select(`
         *,
+        profiles!meals_profile_id_fkey(email, full_name),
         meal_ingredients(
           *,
           ingredients(*)
@@ -840,13 +921,17 @@ export const createMeal = async (mealData: CreateMealData): Promise<{ success: b
         {
           name: mealData.name,
           category: mealData.category,
-            recipe: mealData.recipe,
+          recipe: mealData.recipe,
           image_url: mealData.image_url,
           is_disabled: false,
           ai_generated: mealData.ai_generated ?? false,
           ai_batch_id: mealData.ai_batch_id ?? null,
           created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString()
+          updated_at: new Date().toISOString(),
+          ...(mealData.isbycook !== undefined ? { isbycook: mealData.isbycook } : {}),
+          ...(mealData.profile_id ? { profile_id: mealData.profile_id } : {}),
+          // Set forreview to true for cook-created meals, false for admin meals
+          ...(mealData.isbycook ? { forreview: true } : { forreview: false })
         }
       ])
       .select('meal_id, name')
@@ -954,15 +1039,53 @@ export const deleteAiMeals = async (batchId?: string): Promise<{ success: boolea
 // Update an existing meal
 export const updateMeal = async (id: string, mealData: Partial<CreateMealData>): Promise<{ success: boolean; error?: string }> => {
   try {
+    // Check current user and role for debugging
+    const { data: { user } } = await supabase.auth.getUser();
+    const userProfile = user ? await supabase
+      .from('profiles')
+      .select('role')
+      .eq('id', user.id)
+      .single() : null;
+    
+    console.log('UpdateMeal Debug Info:', {
+      userId: user?.id,
+      userRole: userProfile?.data?.role,
+      mealId: id
+    });
+
+    // First, check if this is a cook-created meal
+    const { data: existingMeal, error: fetchError } = await supabase
+      .from('meals')
+      .select('isbycook, profile_id')
+      .eq('meal_id', id)
+      .single();
+
+    if (fetchError) {
+      console.error('Error fetching existing meal:', fetchError);
+      return { success: false, error: fetchError.message };
+    }
+
+    console.log('Existing meal info:', existingMeal);
+
+    const updateData: any = {
+      name: mealData.name,
+      category: mealData.category,
+      recipe: mealData.recipe,
+      image_url: mealData.image_url,
+      updated_at: new Date().toISOString()
+    };
+
+    // If this is a cook-created meal, set it back to review when updated
+    if (existingMeal?.isbycook) {
+      updateData.forreview = true;
+      updateData.is_approved = false;
+      updateData.rejected = false;
+      updateData.rejection_reason = null;
+    }
+
     const { data, error } = await supabase
       .from('meals')
-      .update({
-        name: mealData.name,
-        category: mealData.category,
-        recipe: mealData.recipe,
-        image_url: mealData.image_url,
-        updated_at: new Date().toISOString()
-      })
+      .update(updateData)
       .eq('meal_id', id)
       .select('meal_id, name')
       .single();
@@ -974,30 +1097,44 @@ export const updateMeal = async (id: string, mealData: Partial<CreateMealData>):
 
     // Replace ingredients if provided
     if (mealData.ingredients) {
-      const { error: delIng } = await supabase.from('meal_ingredients').delete().eq('meal_id', id);
+      const { error: delIng } = await supabase.from('meal_ingredients').delete().eq('meal_id', parseInt(id));
       if (delIng) {
         console.error('Error clearing existing meal ingredients:', delIng);
         return { success: false, error: 'Failed to update meal ingredients' };
       }
       if (mealData.ingredients.length > 0) {
-        const rows = mealData.ingredients.map(i => ({ meal_id: id, ingredient_id: i.ingredient_id, quantity: i.quantity }));
+        const rows = mealData.ingredients.map(i => ({ meal_id: parseInt(id), ingredient_id: i.ingredient_id, quantity: i.quantity }));
+        console.log('Attempting to insert meal_ingredients:', rows);
+        console.log('Current user context:', { user: (await supabase.auth.getUser()).data.user?.id });
+        
+        // For cook-created meals, verify ownership before inserting
+        if (existingMeal?.isbycook && existingMeal?.profile_id !== user?.id && userProfile?.data?.role !== 'admin') {
+          return { success: false, error: 'You can only update your own meals' };
+        }
+        
         const { error: insIng } = await supabase.from('meal_ingredients').insert(rows);
         if (insIng) {
           console.error('Error inserting updated meal ingredients:', insIng);
-          return { success: false, error: 'Failed to insert updated meal ingredients' };
+          console.error('RLS Error Details:', {
+            code: insIng.code,
+            message: insIng.message,
+            details: insIng.details,
+            hint: insIng.hint
+          });
+          return { success: false, error: `Failed to insert updated meal ingredients: ${insIng.message}` };
         }
       }
     }
 
     // Replace condiments if provided
     if (mealData.condiments) {
-      const { error: delCond } = await supabase.from('meal_condiments').delete().eq('meal_id', id);
+      const { error: delCond } = await supabase.from('meal_condiments').delete().eq('meal_id', parseInt(id));
       if (delCond) {
         console.error('Error clearing existing meal condiments:', delCond);
         return { success: false, error: 'Failed to update meal condiments' };
       }
       if (mealData.condiments.length > 0) {
-        const rows = mealData.condiments.map(c => ({ meal_id: id, condiment_id: c.condiment_id, quantity: c.quantity }));
+        const rows = mealData.condiments.map(c => ({ meal_id: parseInt(id), condiment_id: c.condiment_id, quantity: c.quantity }));
         const { error: insCond } = await supabase.from('meal_condiments').insert(rows);
         if (insCond) {
           console.error('Error inserting updated meal condiments:', insCond);
@@ -1008,13 +1145,13 @@ export const updateMeal = async (id: string, mealData: Partial<CreateMealData>):
 
     // Replace dietary tags if provided
     if (mealData.dietary_tag_ids) {
-      const { error: delTags } = await supabase.from('meal_dietary_tags').delete().eq('meal_id', id);
+      const { error: delTags } = await supabase.from('meal_dietary_tags').delete().eq('meal_id', parseInt(id));
       if (delTags) {
         console.error('Error clearing existing meal dietary tags:', delTags);
         return { success: false, error: 'Failed to update meal dietary tags' };
       }
       if (mealData.dietary_tag_ids.length > 0) {
-        const tagRows = mealData.dietary_tag_ids.map(tagId => ({ meal_id: id, tag_id: tagId }));
+        const tagRows = mealData.dietary_tag_ids.map(tagId => ({ meal_id: parseInt(id), tag_id: tagId }));
         const { error: insTags } = await supabase.from('meal_dietary_tags').insert(tagRows);
         if (insTags) {
           console.error('Error inserting updated meal dietary tags:', insTags);
@@ -1092,7 +1229,12 @@ export const duplicateMeal = async (id: number): Promise<{ success: boolean; err
         is_disabled: false,
         ai_generated: false,
         created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString()
+        updated_at: new Date().toISOString(),
+        // Preserve cook ownership and review status from source meal
+        ...(src.isbycook !== undefined ? { isbycook: src.isbycook } : {}),
+        ...(src.profile_id ? { profile_id: src.profile_id } : {}),
+        // Set forreview to true for cook-created meals, false for admin meals
+        ...(src.isbycook ? { forreview: true } : { forreview: false })
       })
       .select('meal_id, name')
       .single();
@@ -1326,6 +1468,100 @@ export const restoreMeal = async (id: number): Promise<{ success: boolean; error
   } catch (error) {
     console.error('Error in restoreMeal:', error);
     return { success: false, error: 'Failed to restore meal' };
+  }
+};
+
+// Update meal approval status (for admin review of cook submissions)
+export const updateMealApprovalStatus = async (id: number, approved: boolean, rejectionReason?: string): Promise<{ success: boolean; error?: string }> => {
+  try {
+    const updateData: any = {
+      updated_at: new Date().toISOString()
+    };
+
+    if (approved) {
+      // Approve the meal
+      updateData.forreview = false;
+      updateData.is_approved = true;
+      updateData.rejected = false;
+      updateData.rejection_reason = null;
+    } else {
+      // Reject the meal
+      updateData.forreview = false;
+      updateData.is_approved = false;
+      updateData.rejected = true;
+      updateData.rejection_reason = rejectionReason || 'No reason provided';
+    }
+
+    const { data, error } = await supabase
+      .from('meals')
+      .update(updateData)
+      .eq('meal_id', id)
+      .select('meal_id, name')
+      .single();
+
+    if (error) {
+      console.error('Error updating meal approval status:', error);
+      return { success: false, error: error.message };
+    }
+
+    // Log the activity
+    if (data) {
+      await createActivityLogEntry(
+        'meal',
+        data.meal_id,
+        data.name,
+        approved ? 'approved' : 'rejected'
+      );
+    }
+
+    // Invalidate relevant caches
+    invalidateCache('mealUpdated');
+
+    return { success: true };
+  } catch (error) {
+    console.error('Error in updateMealApprovalStatus:', error);
+    return { success: false, error: 'Failed to update meal approval status' };
+  }
+};
+
+// Reopen meal for review (set back to pending status)
+export const reopenMealReview = async (id: number): Promise<{ success: boolean; error?: string }> => {
+  try {
+    const { data, error } = await supabase
+      .from('meals')
+      .update({ 
+        forreview: true,
+        is_approved: false,
+        rejected: false,
+        rejection_reason: null,
+        updated_at: new Date().toISOString() 
+      })
+      .eq('meal_id', id)
+      .select('meal_id, name')
+      .single();
+
+    if (error) {
+      console.error('Error reopening meal review:', error);
+      return { success: false, error: error.message };
+    }
+
+    // Log the activity
+    if (data) {
+      await createActivityLogEntry(
+        'meal',
+        data.meal_id,
+        data.name,
+        'reopened'
+      );
+    }
+
+    // Invalidate relevant caches
+    invalidateCache('mealUpdated');
+
+    return { success: true };
+  } catch (error) {
+    console.error('Error in reopenMealReview:', error);
+    return { success: false, error: 'Failed to reopen meal review' };
   }
 };
 
@@ -1678,13 +1914,51 @@ export const getAllCooks = async (): Promise<{ success: boolean; data?: Cook[]; 
 // Approve cook application: set is_verified=true, keep for_review=true, clear rejection
 export const approveCook = async (cookId: string): Promise<{ success: boolean; error?: string }> => {
   try {
+    // First, get the cook's info and email from profile
+    const { data: cookData, error: fetchError } = await supabase
+      .from('cooks')
+      .select(`
+        *,
+        profiles!inner (
+          email
+        )
+      `)
+      .eq('id', cookId)
+      .single();
+
+    if (fetchError) {
+      console.error('Error fetching cook data:', fetchError);
+      throw fetchError;
+    }
+
+    if (!cookData?.profiles?.email) {
+      console.error('Cook email not found');
+      return { success: false, error: 'Cook email not found' };
+    }
+
+    // Update cook status
     const { error } = await supabase
       .from('cooks')
-  .update({ is_verified: true, is_rejected: false, for_review: true })
+      .update({ is_verified: true, is_rejected: false, for_review: true })
       .eq('id', cookId);
+    
     if (error) throw error;
-  // log
-  await createActivityLogEntry('cook', cookId, 'Cook', 'approved');
+
+    // Send approval email notification
+    const emailResult = await sendCookNotification({
+      cookEmail: cookData.profiles.email,
+      cookName: cookData.username || 'Cook',
+      status: 'approved'
+    });
+
+    if (!emailResult.success) {
+      console.warn('Cook approved but email notification failed:', emailResult.error);
+      // Don't fail the approval if email fails
+    }
+
+    // Log the action
+    await createActivityLogEntry('cook', cookId, 'Cook', 'approved');
+    
     return { success: true };
   } catch (error) {
     console.error('Error approving cook:', error);
@@ -1695,12 +1969,52 @@ export const approveCook = async (cookId: string): Promise<{ success: boolean; e
 // Reject cook application: mark rejected, keep for_review=true
 export const rejectCook = async (cookId: string, _reason: string): Promise<{ success: boolean; error?: string }> => {
   try {
+    // First, get the cook's info and email from profile
+    const { data: cookData, error: fetchError } = await supabase
+      .from('cooks')
+      .select(`
+        *,
+        profiles!inner (
+          email
+        )
+      `)
+      .eq('id', cookId)
+      .single();
+
+    if (fetchError) {
+      console.error('Error fetching cook data:', fetchError);
+      throw fetchError;
+    }
+
+    if (!cookData?.profiles?.email) {
+      console.error('Cook email not found');
+      return { success: false, error: 'Cook email not found' };
+    }
+
+    // Update cook status
     const { error } = await supabase
       .from('cooks')
-  .update({ is_verified: false, is_rejected: true, for_review: true, rejection_reason: _reason })
+      .update({ is_verified: false, is_rejected: true, for_review: true, rejection_reason: _reason })
       .eq('id', cookId);
+    
     if (error) throw error;
-  await createActivityLogEntry('cook', cookId, 'Cook', 'rejected', { rejection_reason: _reason });
+
+    // Send rejection email notification
+    const emailResult = await sendCookNotification({
+      cookEmail: cookData.profiles.email,
+      cookName: cookData.username || 'Cook',
+      status: 'rejected',
+      rejectionReason: _reason
+    });
+
+    if (!emailResult.success) {
+      console.warn('Cook rejected but email notification failed:', emailResult.error);
+      // Don't fail the rejection if email fails
+    }
+
+    // Log the action
+    await createActivityLogEntry('cook', cookId, 'Cook', 'rejected', { rejection_reason: _reason });
+    
     return { success: true };
   } catch (error) {
     console.error('Error rejecting cook:', error);
@@ -1776,12 +2090,67 @@ export const getAllCondiments = async () => {
   }
 };
 
-// Create condiment
-export const createCondiment = async (condimentData: any) => {
+// Get all condiments excluding cook-created ones (for admin use)
+export const getAllCondimentsForAdmin = async () => {
   try {
     const { data, error } = await supabase
       .from('condiments')
-      .insert([condimentData])
+      .select('*, package_price, package_quantity')
+      .or('isbycook.is.null,isbycook.eq.false') // Exclude cook-created condiments
+      .order('name');
+    
+    if (error) throw error;
+    
+    // Add signed URLs for images
+    let condimentsWithUrls = data || [];
+    if (condimentsWithUrls.length > 0) {
+      const paths = condimentsWithUrls
+        .map(condiment => condiment.image_url)
+        .filter(Boolean);
+      
+      if (paths.length > 0) {
+        const urlMap = await getSignedUrls(paths);
+        condimentsWithUrls = condimentsWithUrls.map(condiment => ({
+          ...condiment,
+          signed_image_url: condiment.image_url ? urlMap[condiment.image_url] : null
+        }));
+      }
+    }
+    
+    return { success: true, data: condimentsWithUrls };
+  } catch (error) {
+    console.error('Error fetching admin condiments:', error);
+    return { success: false, error: 'Failed to fetch admin condiments' };
+  }
+};
+
+// Create condiment
+export const createCondiment = async (condimentData: {
+  name: string;
+  price_per_unit: number;
+  unit_type: CondimentUnitType;
+  package_price?: number;
+  package_quantity?: number;
+  image_url?: string;
+  isbycook?: boolean;
+  profile_id?: string;
+}) => {
+  try {
+    const { data, error } = await supabase
+      .from('condiments')
+      .insert([{
+        name: condimentData.name,
+        price_per_unit: condimentData.price_per_unit,
+        unit_type: condimentData.unit_type,
+        package_price: condimentData.package_price,
+        package_quantity: condimentData.package_quantity,
+        image_url: condimentData.image_url,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+        is_archived: false,
+        ...(condimentData.isbycook !== undefined ? { isbycook: condimentData.isbycook } : {}),
+        ...(condimentData.profile_id ? { profile_id: condimentData.profile_id } : {})
+      }])
       .select()
       .single();
     
@@ -1826,6 +2195,35 @@ export const toggleCondimentArchiveStatus = async (condimentId: number, archived
   } catch (error) {
     console.error('Error toggling condiment archive status:', error);
     return { success: false, error: 'Failed to toggle condiment archive status' };
+  }
+};
+
+// ================================
+// EMAIL NOTIFICATIONS
+// ================================
+
+interface SendCookNotificationParams {
+  cookEmail: string;
+  cookName: string;
+  status: 'approved' | 'rejected';
+  rejectionReason?: string;
+}
+
+export const sendCookNotification = async (params: SendCookNotificationParams) => {
+  try {
+    const { data, error } = await supabase.functions.invoke('send-cook-notification', {
+      body: params
+    });
+
+    if (error) {
+      console.error('Error calling email function:', error);
+      return { success: false, error: error.message || 'Failed to send email' };
+    }
+
+    return { success: true, data };
+  } catch (error) {
+    console.error('Error sending cook notification:', error);
+    return { success: false, error: 'Failed to send email notification' };
   }
 };
 

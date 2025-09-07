@@ -5,6 +5,7 @@ import { toast } from 'sonner';
 import { MealCard } from '../components/MealCard';
 import { MealFiltersComponent } from '../components/MealFiltersComponent';
 import { Button } from '../components/ui/button';
+import { useAuth } from '../contexts/AuthContext';
 import { useModal } from '../contexts/ModalContext';
 import { useDocumentTitle } from '../hooks/useDocumentTitle';
 import {
@@ -55,6 +56,7 @@ const calculateMealPrice = (meal: Meal): number => {
 };
 
 export const MealCurationPage = () => {
+  const { userRole, isVerifiedCook, user } = useAuth();
   const [allMeals, setAllMeals] = useState<Meal[]>([]);
   const [allArchivedMeals, setAllArchivedMeals] = useState<Meal[]>([]);
   const [dietaryTags, setDietaryTags] = useState<DietaryTag[]>([]);
@@ -75,6 +77,22 @@ export const MealCurationPage = () => {
   const filteredMeals = useMemo(() => {
     const sourceData = showArchived ? allArchivedMeals : allMeals;
     let filtered = [...sourceData];
+
+    // If cook, only show their own meals
+    if (userRole === 'cook' && isVerifiedCook && user) {
+      filtered = filtered.filter(meal => {
+        // Only show meals created by this cook
+        return meal.isbycook === true && meal.profile_id === user.id;
+      });
+    }
+
+    // If admin, only show meals not created by cooks (admin-created meals)
+    if (userRole === 'admin') {
+      filtered = filtered.filter(meal => {
+        // Only show meals that are not created by cooks
+        return !meal.isbycook;
+      });
+    }
 
     // Apply search filter
     if (debouncedSearch) {
@@ -122,6 +140,25 @@ export const MealCurationPage = () => {
       });
     }
 
+    // Apply status filter (for cook-created meals only)
+    if (filters.status && userRole === 'cook' && isVerifiedCook) {
+      switch (filters.status) {
+        case 'pending':
+          filtered = filtered.filter(meal => meal.isbycook && meal.forreview === true);
+          break;
+        case 'approved':
+          filtered = filtered.filter(meal => meal.isbycook && meal.forreview === false && meal.is_approved === true);
+          break;
+        case 'rejected':
+          filtered = filtered.filter(meal => meal.isbycook && meal.forreview === false && meal.is_approved === false && meal.rejected === true);
+          break;
+        case 'all':
+        default:
+          // No additional filtering needed
+          break;
+      }
+    }
+
     // Apply sorting
     const sortBy = filters.sort_by || 'created_at';
     const sortOrder = filters.sort_order || 'desc';
@@ -152,7 +189,7 @@ export const MealCurationPage = () => {
     });
 
     return filtered;
-  }, [allMeals, allArchivedMeals, debouncedSearch, filters, showArchived]);
+  }, [allMeals, allArchivedMeals, debouncedSearch, filters, showArchived, userRole, isVerifiedCook, user]);
 
   // Load initial data
   useEffect(() => {
@@ -263,12 +300,17 @@ export const MealCurationPage = () => {
           <div className="flex items-center justify-between">
             <div>
               <h2 className="text-3xl font-semibold text-gray-900">
-                Meal Curation {showArchived && '- Archived Meals'}
+                {userRole === 'cook' && isVerifiedCook 
+                  ? `My Meal Submissions ${showArchived ? '- Archived' : ''}`
+                  : `Meal Curation ${showArchived ? '- Archived Meals' : ''}`
+                }
               </h2>
               <p className="mt-1 text-sm text-gray-500">
                 {showArchived 
                   ? 'Manage archived meals using the Pinggang Pinoy framework'
-                  : 'Create and manage balanced meals using the Pinggang Pinoy framework'
+                  : userRole === 'cook' && isVerifiedCook
+                    ? 'Create and track your meal submissions for admin review'
+                    : 'Create and manage balanced meals using the Pinggang Pinoy framework'
                 }
               </p>
             </div>
@@ -300,6 +342,8 @@ export const MealCurationPage = () => {
           dietaryTags={dietaryTags}
           showArchived={showArchived}
           onToggleArchived={handleToggleArchived}
+          userRole={userRole || undefined}
+          isVerifiedCook={isVerifiedCook}
         />
 
         {/* Content */}
@@ -329,7 +373,9 @@ export const MealCurationPage = () => {
                   ? 'You haven\'t archived any meals yet. Archived meals will appear here.'
                   : Object.keys(filters).length > 0 
                     ? 'No meals match your current filters. Try adjusting your search criteria.'
-                    : 'Start building your meal library by creating your first balanced meal using the Pinggang Pinoy framework.'
+                    : userRole === 'cook' && isVerifiedCook 
+                      ? 'Start creating balanced meals using the Pinggang Pinoy framework. Your submitted meals will be reviewed by admins before approval.'
+                      : 'Start building your meal library by creating your first balanced meal using the Pinggang Pinoy framework.'
                 }
               </p>
               {!showArchived && Object.keys(filters).length === 0 && (
@@ -369,36 +415,64 @@ export const MealCurationPage = () => {
                   {showArchived ? 'Archived Meals' : 'Total Meals'}
                 </div>
               </div>
-              <div>
-                <div className="text-2xl font-bold text-green-800">
-                  {filteredMeals.filter((m: Meal) => {
-                    return Array.isArray(m.category) 
-                      ? m.category.includes('Best for Breakfast')
-                      : m.category === 'Best for Breakfast';
-                  }).length}
-                </div>
-                <div className="text-sm text-green-600">Breakfast Meals</div>
-              </div>
-              <div>
-                <div className="text-2xl font-bold text-green-800">
-                  {filteredMeals.filter((m: Meal) => {
-                    return Array.isArray(m.category) 
-                      ? m.category.includes('Best for Lunch')
-                      : m.category === 'Best for Lunch';
-                  }).length}
-                </div>
-                <div className="text-sm text-green-600">Lunch Meals</div>
-              </div>
-              <div>
-                <div className="text-2xl font-bold text-green-800">
-                  {filteredMeals.filter((m: Meal) => {
-                    return Array.isArray(m.category) 
-                      ? m.category.includes('Best for Dinner')
-                      : m.category === 'Best for Dinner';
-                  }).length}
-                </div>
-                <div className="text-sm text-green-600">Dinner Meals</div>
-              </div>
+              
+              {/* Show status-based stats for cooks */}
+              {userRole === 'cook' && isVerifiedCook && !showArchived ? (
+                <>
+                  <div>
+                    <div className="text-2xl font-bold text-yellow-800">
+                      {filteredMeals.filter((m: Meal) => m.isbycook && m.forreview === true).length}
+                    </div>
+                    <div className="text-sm text-yellow-600">In Review</div>
+                  </div>
+                  <div>
+                    <div className="text-2xl font-bold text-green-800">
+                      {filteredMeals.filter((m: Meal) => m.isbycook && m.forreview === false && m.is_approved === true).length}
+                    </div>
+                    <div className="text-sm text-green-600">Approved</div>
+                  </div>
+                  <div>
+                    <div className="text-2xl font-bold text-red-800">
+                      {filteredMeals.filter((m: Meal) => m.isbycook && m.forreview === false && m.is_approved === false && m.rejected === true).length}
+                    </div>
+                    <div className="text-sm text-red-600">Rejected</div>
+                  </div>
+                </>
+              ) : (
+                /* Show category-based stats for admins */
+                <>
+                  <div>
+                    <div className="text-2xl font-bold text-green-800">
+                      {filteredMeals.filter((m: Meal) => {
+                        return Array.isArray(m.category) 
+                          ? m.category.includes('Best for Breakfast')
+                          : m.category === 'Best for Breakfast';
+                      }).length}
+                    </div>
+                    <div className="text-sm text-green-600">Breakfast Meals</div>
+                  </div>
+                  <div>
+                    <div className="text-2xl font-bold text-green-800">
+                      {filteredMeals.filter((m: Meal) => {
+                        return Array.isArray(m.category) 
+                          ? m.category.includes('Best for Lunch')
+                          : m.category === 'Best for Lunch';
+                      }).length}
+                    </div>
+                    <div className="text-sm text-green-600">Lunch Meals</div>
+                  </div>
+                  <div>
+                    <div className="text-2xl font-bold text-green-800">
+                      {filteredMeals.filter((m: Meal) => {
+                        return Array.isArray(m.category) 
+                          ? m.category.includes('Best for Dinner')
+                          : m.category === 'Best for Dinner';
+                      }).length}
+                    </div>
+                    <div className="text-sm text-green-600">Dinner Meals</div>
+                  </div>
+                </>
+              )}
             </div>
           </div>
         )}

@@ -1,7 +1,7 @@
 import { Check, Package, Plus, Search, X as XIcon } from 'lucide-react';
 import React, { useEffect, useState } from 'react';
 import { useModal } from '../contexts/ModalContext';
-import { getAllCondiments } from '../lib/supabaseQueries';
+import { getAllCondiments, getAllCondimentsForAdmin } from '../lib/supabaseQueries';
 import type { Condiment } from '../types';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
@@ -11,12 +11,14 @@ interface CondimentSectionProps {
   selectedCondiments: { condiment_id: number; quantity: string }[];
   onCondimentSelect: (condiment: Condiment) => void;
   onQuantityChange: (condimentId: number, quantity: string) => void;
+  userRole?: string; // Add userRole prop to filter out cook-created condiments for admin users
 }
 
 export const CondimentSection: React.FC<CondimentSectionProps> = ({
   selectedCondiments,
   onCondimentSelect,
-  onQuantityChange
+  onQuantityChange,
+  userRole
 }) => {
   const [condiments, setCondiments] = useState<Condiment[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
@@ -32,7 +34,9 @@ export const CondimentSection: React.FC<CondimentSectionProps> = ({
 
   const loadCondiments = async () => {
     setIsLoading(true);
-    const result = await getAllCondiments();
+    // Use admin-filtered function for admin users to exclude cook-created condiments
+    const condimentsFunction = userRole === 'admin' ? getAllCondimentsForAdmin : getAllCondiments;
+    const result = await condimentsFunction();
     if (result.success && result.data) {
       setCondiments(result.data);
     }
@@ -41,7 +45,7 @@ export const CondimentSection: React.FC<CondimentSectionProps> = ({
 
   useEffect(() => {
     loadCondiments();
-  }, []);
+  }, [userRole]); // Re-load when userRole changes
 
   // Listen for condiment added events
   useEffect(() => {

@@ -76,7 +76,7 @@ export const LoginForm = () => {
           <CardHeader className="pb-6">
             <CardTitle className="text-center text-xl font-semibold">Sign In</CardTitle>
             <CardDescription className="text-center">
-              Enter your credentials to access the dashboard. Allowed roles: {allowedRoles.join(', ')}
+              Enter credentials. Allowed roles: {allowedRoles.join(', ')} (cooks must be verified).
             </CardDescription>
           </CardHeader>
           <CardContent>

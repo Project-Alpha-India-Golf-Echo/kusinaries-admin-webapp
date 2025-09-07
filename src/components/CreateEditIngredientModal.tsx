@@ -1,11 +1,12 @@
 import {
-  FileUpload, FileUploadDropzone, FileUploadItem, FileUploadItemDelete,
-  FileUploadItemMetadata, FileUploadItemPreview, FileUploadList, FileUploadTrigger,
+    FileUpload, FileUploadDropzone, FileUploadItem, FileUploadItemDelete,
+    FileUploadItemMetadata, FileUploadItemPreview, FileUploadList, FileUploadTrigger,
 } from "@/components/ui/file-upload";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Loader2, Upload, X } from 'lucide-react';
 import { useCallback, useEffect, useState } from 'react';
 import { toast } from "sonner";
+import { useAuth } from '../contexts/AuthContext';
 import { updateImageInStorage, uploadImageToStorage, validateImageFileForStorage } from '../lib/storageUtils';
 import { createIngredient, updateIngredient } from '../lib/supabaseQueries';
 import type { Ingredient, IngredientCategory, IngredientUnitType } from '../types';
@@ -28,6 +29,7 @@ export const CreateEditIngredientModal: React.FC<CreateEditIngredientModalProps>
   editingIngredient,
   initialCategory
 }) => {
+  const { userRole, user } = useAuth();
   const [formData, setFormData] = useState({
     name: '',
     category: 'Go' as IngredientCategory,
@@ -41,6 +43,7 @@ export const CreateEditIngredientModal: React.FC<CreateEditIngredientModalProps>
 
   const isEditing = !!editingIngredient;
   const isCategoryLocked = !!initialCategory && !isEditing;
+  const isCook = userRole === 'cook';
 
   // Initialize form data when modal opens or editing ingredient changes
   useEffect(() => {
@@ -158,7 +161,11 @@ export const CreateEditIngredientModal: React.FC<CreateEditIngredientModalProps>
           price_per_kilo: pricePerKilo,
           package_price: packagePrice,
           package_quantity: packageQuantity,
-          image_url: imageUrl
+          image_url: imageUrl,
+          ...(isCook && user ? {
+            isbycook: true,
+            profile_id: user.id
+          } : {})
         });
       }
 

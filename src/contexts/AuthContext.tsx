@@ -12,6 +12,7 @@ interface AuthContextType {
   signOut: () => Promise<void>
   refreshUserRole: () => Promise<void>
   allowedRoles: string[]
+  isVerifiedCook: boolean
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined)
@@ -29,7 +30,9 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const [session, setSession] = useState<Session | null>(null)
   const [loading, setLoading] = useState(true)
   const [userRole, setUserRole] = useState<string | null>(null)
-  const allowedRoles = ['admin', 'user']
+  // Base allowed roles now includes cook (with additional verification gating)
+  const allowedRoles = ['admin', 'user', 'cook']
+  const [isVerifiedCook, setIsVerifiedCook] = useState(false)
 
   // Fetch user role from profiles table
   const fetchUserRole = async (userId: string) => {
@@ -56,6 +59,34 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     if (user) {
       const role = await fetchUserRole(user.id);
       setUserRole(role);
+      if (role === 'cook') {
+        const verified = await fetchCookVerification(user.id)
+        setIsVerifiedCook(verified)
+      } else {
+        setIsVerifiedCook(false)
+      }
+    }
+  };
+
+  // Fetch cook verification status
+  const fetchCookVerification = async (userId: string): Promise<boolean> => {
+    try {
+      // Attempt to fetch a cook record linked to this profile/user
+      const { data, error } = await supabase
+        .from('cooks')
+        .select('is_verified')
+        .eq('profile_id', userId)
+        .maybeSingle();
+
+      if (error) {
+        // Log but do not block; treat as unverified
+        console.warn('Error fetching cook verification status:', error);
+        return false;
+      }
+      return !!(data as any)?.is_verified;
+    } catch (e) {
+      console.error('fetchCookVerification error:', e);
+      return false;
     }
   };
 
@@ -83,9 +114,15 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     if (user) {
       fetchUserRole(user.id).then(role => {
         setUserRole(role);
+        if (role === 'cook') {
+          fetchCookVerification(user.id).then(v => setIsVerifiedCook(v));
+        } else {
+          setIsVerifiedCook(false);
+        }
       });
     } else {
       setUserRole(null);
+      setIsVerifiedCook(false);
     }
   }, [user])
 
@@ -102,9 +139,18 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       const role = await fetchUserRole(authUser.id)
       setUserRole(role)
       if (!role || !allowedRoles.includes(role)) {
-        // Sign out disallowed roles
         await supabase.auth.signOut()
         return { error: { message: `Access restricted.` } }
+      }
+      if (role === 'cook') {
+        const verified = await fetchCookVerification(authUser.id)
+        setIsVerifiedCook(verified)
+        if (!verified) {
+          await supabase.auth.signOut()
+            return { error: { message: 'Cook not verified yet. Access denied.' } }
+        }
+      } else {
+        setIsVerifiedCook(false)
       }
     }
 
@@ -127,6 +173,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         signOut,
   refreshUserRole,
   allowedRoles,
+  isVerifiedCook,
       }}
     >
       {children}
