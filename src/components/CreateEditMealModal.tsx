@@ -6,9 +6,10 @@ import { Textarea } from "@/components/ui/textarea";
 import { Calculator, Loader2, Settings, Trash2, Upload, X } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { toast } from "sonner";
+import { useAuth } from '../contexts/AuthContext';
 import { useModal } from '../contexts/ModalContext';
 import { updateImageInStorage, uploadImageToStorage, validateImageFileForStorage } from '../lib/storageUtils';
-import { createMeal, getAllCondiments, getAllDietaryTags, getAllIngredients, updateMeal } from '../lib/supabaseQueries';
+import { createMeal, getAllCondiments, getAllCondimentsForAdmin, getAllDietaryTags, getAllIngredients, getAllIngredientsForAdmin, updateMeal } from '../lib/supabaseQueries';
 import type { Condiment, CreateMealData, DietaryTag, Ingredient, Meal, MealCategory } from '../types';
 import { CondimentSection } from './CondimentSection';
 import { IngredientSection } from './IngredientSection';
@@ -28,6 +29,7 @@ export const CreateEditMealModal: React.FC<CreateEditMealModalProps> = ({
   onMealSaved,
   editingMeal
 }) => {
+  const { userRole, isVerifiedCook, user } = useAuth();
   const [formData, setFormData] = useState({
     name: '',
     category: [] as MealCategory[], // Changed to array for multiple categories
@@ -46,6 +48,51 @@ export const CreateEditMealModal: React.FC<CreateEditMealModalProps> = ({
   const [validationErrors, setValidationErrors] = useState<string[]>([]);
   const [showConfirm, setShowConfirm] = useState(false);
   const [lastPopulatedMealId, setLastPopulatedMealId] = useState<number | null>(null);
+
+  // Helper functions for rejected meals
+  const isRejectedMeal = editingMeal?.isbycook && editingMeal?.rejected;
+  
+  const getModalTitle = () => {
+    if (editingMeal) {
+      return isRejectedMeal ? 'Resubmit Meal' : 'Edit Meal';
+    }
+    return 'Create New Meal';
+  };
+
+  const getButtonText = () => {
+    if (editingMeal) {
+      return isRejectedMeal ? 'Resubmit Meal' : 'Update Meal';
+    }
+    return 'Create Meal';
+  };
+
+  const getLoadingText = () => {
+    if (editingMeal) {
+      return isRejectedMeal ? 'Resubmitting...' : 'Updating...';
+    }
+    return 'Creating...';
+  };
+
+  const getConfirmTitle = () => {
+    if (editingMeal) {
+      return isRejectedMeal ? 'Confirm Resubmission' : 'Confirm Update';
+    }
+    return 'Confirm New Meal';
+  };
+
+  const getSuccessMessage = () => {
+    if (editingMeal) {
+      return isRejectedMeal ? 'Meal resubmitted for review successfully!' : 'Meal updated successfully!';
+    }
+    return 'Meal created successfully!';
+  };
+
+  const getErrorMessage = () => {
+    if (editingMeal) {
+      return isRejectedMeal ? 'Failed to resubmit meal' : 'Failed to update meal';
+    }
+    return 'Failed to create meal';
+  };
   const [showClearConfirm, setShowClearConfirm] = useState(false);
 
   const { openIngredientManagementModal, openCondimentManagementModal } = useModal();
@@ -145,10 +192,14 @@ export const CreateEditMealModal: React.FC<CreateEditMealModalProps> = ({
   useEffect(() => {
     const loadData = async () => {
       try {
+        // Use admin-filtered functions for admin users to exclude cook-created ingredients/condiments
+        const ingredientsFunction = userRole === 'admin' ? getAllIngredientsForAdmin : getAllIngredients;
+        const condimentsFunction = userRole === 'admin' ? getAllCondimentsForAdmin : getAllCondiments;
+        
         const [dietaryTagsResponse, ingredientsResponse, condimentsResponse] = await Promise.all([
           getAllDietaryTags(),
-          getAllIngredients(),
-          getAllCondiments()
+          ingredientsFunction(),
+          condimentsFunction()
         ]);
         if (dietaryTagsResponse.success && dietaryTagsResponse.data) {
           setDietaryTags(dietaryTagsResponse.data);
@@ -165,12 +216,13 @@ export const CreateEditMealModal: React.FC<CreateEditMealModalProps> = ({
     };
 
     loadData();
-  }, []);
+  }, [userRole]);
 
   // Listen for ingredient updates from the management modal
   useEffect(() => {
     const handleIngredientUpdate = async () => {
-      const ingredientsResult = await getAllIngredients();
+      const ingredientsFunction = userRole === 'admin' ? getAllIngredientsForAdmin : getAllIngredients;
+      const ingredientsResult = await ingredientsFunction();
       if (ingredientsResult.success && ingredientsResult.data) {
         setAllIngredients(ingredientsResult.data);
       }
@@ -183,7 +235,7 @@ export const CreateEditMealModal: React.FC<CreateEditMealModalProps> = ({
       window.removeEventListener('ingredientSaved', handleIngredientUpdate);
       window.removeEventListener('ingredientAdded', handleIngredientUpdate);
     };
-  }, []);
+  }, [userRole]);
 
   // Listen for condiment updates from the management modal
   useEffect(() => {
@@ -539,6 +591,7 @@ export const CreateEditMealModal: React.FC<CreateEditMealModalProps> = ({
       } else if (editingMeal && editingMeal.image_url) {
         imageUrl = editingMeal.image_url;
       }
+      console.log("user?.id:", user?.id);
 
       const mealData: CreateMealData = {
         name: formData.name.trim(),
@@ -547,7 +600,11 @@ export const CreateEditMealModal: React.FC<CreateEditMealModalProps> = ({
         image_url: imageUrl,
         ingredients: selectedIngredients.filter(item => item.quantity.trim()),
         condiments: selectedCondiments.filter(item => item.quantity.trim()),
-        dietary_tag_ids: selectedDietaryTags
+        dietary_tag_ids: selectedDietaryTags,
+        ...(userRole === 'cook' && isVerifiedCook && user ? {
+          isbycook: true,
+          profile_id: user.id // user.id is the profile_id
+        } : {})
       };
 
       const result = editingMeal
@@ -555,12 +612,12 @@ export const CreateEditMealModal: React.FC<CreateEditMealModalProps> = ({
         : await createMeal(mealData);
 
       if (result.success) {
-        toast.success(`Meal ${editingMeal ? 'updated' : 'created'} successfully!`);
+        toast.success(getSuccessMessage());
         clearCache(); // Clear cache on successful save
         onMealSaved();
         onClose();
       } else {
-        toast.error(result.error || `Failed to ${editingMeal ? 'update' : 'create'} meal`);
+        toast.error(result.error || getErrorMessage());
       }
     } catch (err) {
       toast.error('An unexpected error occurred');
@@ -641,7 +698,7 @@ export const CreateEditMealModal: React.FC<CreateEditMealModalProps> = ({
         <div className="flex justify-between items-center p-6 border-b border-gray-200 bg-gradient-to-r from-white to-gray-50">
           <div className="flex items-center gap-4">
             <h2 className="text-xl font-semibold text-gray-900">
-              {editingMeal ? 'Edit Meal' : 'Create New Meal'}
+              {getModalTitle()}
             </h2>
             {/* Enhanced Pricing Indicator */}
             <div className="flex items-center gap-3">
@@ -693,6 +750,22 @@ export const CreateEditMealModal: React.FC<CreateEditMealModalProps> = ({
             </Button>
           </div>
         </div>
+
+        {/* Rejection Notice for rejected meals */}
+        {isRejectedMeal && editingMeal?.rejection_reason && (
+          <div className="mx-6 mt-4 p-4 bg-red-50 border border-red-200 rounded-lg">
+            <div className="flex items-start gap-3">
+              <div className="w-5 h-5 rounded-full bg-red-100 flex items-center justify-center flex-shrink-0 mt-0.5">
+                <X className="w-3 h-3 text-red-600" />
+              </div>
+              <div className="flex-1">
+                <h4 className="text-sm font-medium text-red-800 mb-1">Previous Rejection Reason</h4>
+                <p className="text-sm text-red-700">{editingMeal.rejection_reason}</p>
+                <p className="text-xs text-red-600 mt-2">Please address the issues above before resubmitting.</p>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Content */}
         <div className="flex-1 overflow-y-auto p-6">
@@ -911,18 +984,21 @@ export const CreateEditMealModal: React.FC<CreateEditMealModalProps> = ({
                   selectedIngredients={selectedIngredients}
                   onIngredientSelect={handleIngredientSelect}
                   onQuantityChange={handleQuantityChange}
+                  userRole={userRole || undefined}
                 />
                 <IngredientSection
                   category="Grow"
                   selectedIngredients={selectedIngredients}
                   onIngredientSelect={handleIngredientSelect}
                   onQuantityChange={handleQuantityChange}
+                  userRole={userRole || undefined}
                 />
                 <IngredientSection
                   category="Glow"
                   selectedIngredients={selectedIngredients}
                   onIngredientSelect={handleIngredientSelect}
                   onQuantityChange={handleQuantityChange}
+                  userRole={userRole || undefined}
                 />
               </div>
 
@@ -945,6 +1021,7 @@ export const CreateEditMealModal: React.FC<CreateEditMealModalProps> = ({
                   selectedCondiments={selectedCondiments}
                   onCondimentSelect={handleCondimentSelect}
                   onQuantityChange={handleCondimentQuantityChange}
+                  userRole={userRole || undefined}
                 />
               </div>
 
@@ -1079,10 +1156,10 @@ export const CreateEditMealModal: React.FC<CreateEditMealModalProps> = ({
             {isLoading ? (
               <>
                 <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                {editingMeal ? 'Updating...' : 'Creating...'}
+                {getLoadingText()}
               </>
             ) : (
-              editingMeal ? 'Update Meal' : 'Create Meal'
+              getButtonText()
             )}
           </Button>
         </div>
@@ -1091,7 +1168,7 @@ export const CreateEditMealModal: React.FC<CreateEditMealModalProps> = ({
         <div className="absolute inset-0 z-[60] flex items-center justify-center bg-black/40 backdrop-blur-sm p-4 animate-in fade-in">
           <div className="bg-white rounded-xl shadow-xl w-full max-w-3xl max-h-[85vh] overflow-hidden flex flex-col">
             <div className="px-6 py-4 border-b flex items-center justify-between">
-              <h3 className="text-lg font-semibold text-gray-800">Confirm {editingMeal ? 'Update' : 'New Meal'}</h3>
+              <h3 className="text-lg font-semibold text-gray-800">{getConfirmTitle()}</h3>
               <Button variant="ghost" size="sm" onClick={() => setShowConfirm(false)} className="hover:bg-gray-100"><X className="w-4 h-4" /></Button>
             </div>
             <div className="flex-1 overflow-y-auto p-6 space-y-6 text-sm">

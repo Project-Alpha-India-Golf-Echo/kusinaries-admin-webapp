@@ -1,6 +1,7 @@
 import { Archive, Edit, Package, RefreshCw, Search, X } from 'lucide-react';
 import React, { useEffect, useState } from 'react';
 import { toast } from 'sonner';
+import { useAuth } from '../contexts/AuthContext';
 import { useModal } from '../contexts/ModalContext';
 import { archiveIngredient, getAllIngredients, getArchivedIngredients, restoreIngredient } from '../lib/supabaseQueries';
 import type { Ingredient, IngredientCategory } from '../types';
@@ -16,6 +17,7 @@ export const IngredientManagementModal: React.FC<IngredientManagementModalProps>
   isOpen,
   onClose
 }) => {
+  const { userRole, user } = useAuth();
   const [ingredients, setIngredients] = useState<Ingredient[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<IngredientCategory | 'All'>('All');
@@ -23,7 +25,10 @@ export const IngredientManagementModal: React.FC<IngredientManagementModalProps>
   const [showArchived, setShowArchived] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
 
-  const { openEditIngredientModal } = useModal();
+  const { openEditIngredientModal, openCreateIngredientModal } = useModal();
+
+  const isAdmin = userRole === 'admin';
+  const isCook = userRole === 'cook';
 
   const loadIngredients = async () => {
     setIsLoading(true);
@@ -33,7 +38,22 @@ export const IngredientManagementModal: React.FC<IngredientManagementModalProps>
         : await getAllIngredients();
       
       if (result.success && result.data) {
-        setIngredients(result.data);
+        let filteredData = result.data;
+        
+        // Filter based on user role
+        if (isCook && user) {
+          // Cooks only see their own ingredients
+          filteredData = result.data.filter(ingredient => 
+            ingredient.isbycook && ingredient.profile_id === user.id
+          );
+        } else if (isAdmin) {
+          // Admins only see admin-created ingredients (not created by cooks)
+          filteredData = result.data.filter(ingredient => 
+            !ingredient.isbycook
+          );
+        }
+        
+        setIngredients(filteredData);
       } else {
         toast.error(result.error || 'Failed to load ingredients');
       }
@@ -48,7 +68,7 @@ export const IngredientManagementModal: React.FC<IngredientManagementModalProps>
     if (isOpen) {
       loadIngredients();
     }
-  }, [isOpen, showArchived]);
+  }, [isOpen, showArchived, userRole, user?.id]);
 
   // Listen for ingredient updates
   useEffect(() => {
@@ -63,7 +83,7 @@ export const IngredientManagementModal: React.FC<IngredientManagementModalProps>
       window.removeEventListener('ingredientSaved', handleIngredientUpdate);
       window.removeEventListener('ingredientAdded', handleIngredientUpdate);
     };
-  }, [showArchived]);
+  }, [showArchived, userRole, user?.id]);
 
   const handleArchive = async (ingredientId: number) => {
     try {
@@ -138,14 +158,27 @@ export const IngredientManagementModal: React.FC<IngredientManagementModalProps>
           <h2 className="text-xl font-semibold text-gray-900">
             Ingredient Management
           </h2>
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={onClose}
-            className="p-2 hover:bg-gray-100 rounded-lg"
-          >
-            <X className="w-4 h-4" />
-          </Button>
+          <div className="flex items-center gap-2">
+            {(isAdmin || isCook) && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => openCreateIngredientModal()}
+                className="gap-2 hover:bg-green-50 border-green-200 hover:border-green-300"
+              >
+                <Package className="w-4 h-4" />
+                Add New Ingredient
+              </Button>
+            )}
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={onClose}
+              className="p-2 hover:bg-gray-100 rounded-lg"
+            >
+              <X className="w-4 h-4" />
+            </Button>
+          </div>
         </div>
 
         {/* Filters */}
@@ -162,15 +195,17 @@ export const IngredientManagementModal: React.FC<IngredientManagementModalProps>
               />
             </div>
 
-            {/* Archive Toggle */}
-            <Button
-              variant={showArchived ? 'default' : 'outline'}
-              onClick={() => setShowArchived(!showArchived)}
-              className="flex items-center gap-2"
-            >
-              <Archive className="w-4 h-4" />
-              {showArchived ? 'Show Active' : 'Show Archived'}
-            </Button>
+            {/* Archive Toggle - Only for admins */}
+            {isAdmin && (
+              <Button
+                variant={showArchived ? 'default' : 'outline'}
+                onClick={() => setShowArchived(!showArchived)}
+                className="flex items-center gap-2"
+              >
+                <Archive className="w-4 h-4" />
+                {showArchived ? 'Show Active' : 'Show Archived'}
+              </Button>
+            )}
           </div>
 
           <div className="flex flex-wrap gap-3 items-center">
@@ -308,35 +343,47 @@ export const IngredientManagementModal: React.FC<IngredientManagementModalProps>
 
                     {/* Actions */}
                     <div className="flex gap-2">
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => handleEdit(ingredient)}
-                        className="flex-1 text-xs"
-                      >
-                        <Edit className="w-3 h-3 mr-1" />
-                        Edit
-                      </Button>
-                      {showArchived ? (
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => handleRestore(ingredient.ingredient_id)}
-                          className="flex-1 text-xs text-green-600 hover:text-green-700 border-green-200 hover:border-green-300"
-                        >
-                          <RefreshCw className="w-3 h-3 mr-1" />
-                          Restore
-                        </Button>
+                      {isAdmin || (isCook && ingredient.isbycook && ingredient.profile_id === user?.id) ? (
+                        <>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => handleEdit(ingredient)}
+                            className="flex-1 text-xs"
+                          >
+                            <Edit className="w-3 h-3 mr-1" />
+                            Edit
+                          </Button>
+                          {isAdmin && (
+                            <>
+                              {showArchived ? (
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={() => handleRestore(ingredient.ingredient_id)}
+                                  className="flex-1 text-xs text-green-600 hover:text-green-700 border-green-200 hover:border-green-300"
+                                >
+                                  <RefreshCw className="w-3 h-3 mr-1" />
+                                  Restore
+                                </Button>
+                              ) : (
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={() => handleArchive(ingredient.ingredient_id)}
+                                  className="flex-1 text-xs text-red-600 hover:text-red-700 border-red-200 hover:border-red-300"
+                                >
+                                  <Archive className="w-3 h-3 mr-1" />
+                                  Archive
+                                </Button>
+                              )}
+                            </>
+                          )}
+                        </>
                       ) : (
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => handleArchive(ingredient.ingredient_id)}
-                          className="flex-1 text-xs text-red-600 hover:text-red-700 border-red-200 hover:border-red-300"
-                        >
-                          <Archive className="w-3 h-3 mr-1" />
-                          Archive
-                        </Button>
+                        <div className="text-xs text-gray-500 text-center w-full py-2">
+                          {isAdmin ? 'Admin Ingredient' : 'My Ingredient'}
+                        </div>
                       )}
                     </div>
                   </div>

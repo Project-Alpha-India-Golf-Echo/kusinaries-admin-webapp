@@ -23,6 +23,8 @@ interface MealFiltersComponentProps {
   dietaryTags: DietaryTag[];
   showArchived: boolean;
   onToggleArchived: () => void;
+  userRole?: string;
+  isVerifiedCook?: boolean;
 }
 
 export const MealFiltersComponent: React.FC<MealFiltersComponentProps> = ({
@@ -30,7 +32,9 @@ export const MealFiltersComponent: React.FC<MealFiltersComponentProps> = ({
   onFiltersChange,
   dietaryTags,
   showArchived,
-  onToggleArchived
+  onToggleArchived,
+  userRole,
+  isVerifiedCook
 }) => {
   const [localSearch, setLocalSearch] = useState(filters.search || '');
   const [newTagName, setNewTagName] = useState('');
@@ -89,11 +93,18 @@ export const MealFiltersComponent: React.FC<MealFiltersComponentProps> = ({
     });
   };
 
+  const handleStatusChange = (status: string) => {
+    onFiltersChange({
+      ...filters,
+      status: status === 'all' ? undefined : status as 'pending' | 'approved' | 'rejected'
+    });
+  };
+
   const clearAllFilters = () => {
     onFiltersChange({});
   };
 
-  const hasActiveFilters = filters.search || filters.category || (filters.dietary_tags && filters.dietary_tags.length > 0);
+  const hasActiveFilters = filters.search || filters.category || (filters.dietary_tags && filters.dietary_tags.length > 0) || filters.status;
 
   const handleAddDietaryTag = async () => {
     const name = newTagName.trim();
@@ -241,6 +252,29 @@ export const MealFiltersComponent: React.FC<MealFiltersComponentProps> = ({
             </Button>
           </div>
         </div>
+
+        {/* Status Filter (for cooks only) */}
+        {userRole === 'cook' && isVerifiedCook && (
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Submission Status
+            </label>
+            <Select
+              value={filters.status || 'all'}
+              onValueChange={(value) => handleStatusChange(value)}
+            >
+              <SelectTrigger className="w-full">
+                <SelectValue placeholder="Status" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Status</SelectItem>
+                <SelectItem value="pending">In Review</SelectItem>
+                <SelectItem value="approved">Approved</SelectItem>
+                <SelectItem value="rejected">Rejected</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+        )}
       </div>
 
       {/* Dietary Tags */}

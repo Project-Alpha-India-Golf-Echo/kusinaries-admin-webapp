@@ -1,19 +1,20 @@
-import { NavLink, useNavigate } from 'react-router-dom'
-import { Button } from './ui/button'
-import { useAuth } from '../contexts/AuthContext'
 import {
-  LayoutDashboard,
-  Users,
-  Settings,
-  ChefHat,
-  LogOut,
-  X,
-  ChevronLeft,
-  ChevronRight,
-  Apple,
-  Salad,
-  History
+    Apple,
+    ChefHat,
+    ChevronLeft,
+    ChevronRight,
+    History,
+    LayoutDashboard,
+    LogOut,
+    Salad,
+    Settings,
+    Users,
+    Utensils,
+    X
 } from 'lucide-react'
+import { NavLink, useNavigate } from 'react-router-dom'
+import { useAuth } from '../contexts/AuthContext'
+import { Button } from './ui/button'
 
 const menuGroups = [
   {
@@ -27,6 +28,7 @@ const menuGroups = [
     items: [
       { id: 'users', label: 'User Management', icon: Users, path: '/users' },
       { id: 'grants', label: 'Grants', icon: ChefHat, path: '/grants' },
+      { id: 'mealsubmissions', label: 'Meal Submissions', icon: Utensils, path: '/mealsubmissions' },
     ]
   },
   {
@@ -53,7 +55,7 @@ interface SidebarProps {
 }
 
 export const Sidebar = ({ isOpen, onToggle, isCollapsed, onCollapsedChange }: SidebarProps) => {
-  const { user, userRole, isAdmin, signOut } = useAuth()
+  const { user, userRole, isAdmin, isVerifiedCook, signOut } = useAuth()
   const navigate = useNavigate()
 
   const handleSignOut = async () => {
@@ -61,8 +63,18 @@ export const Sidebar = ({ isOpen, onToggle, isCollapsed, onCollapsedChange }: Si
     navigate('/login')
   }
 
-  // All users can access all menu items
-  const filteredMenuGroups = menuGroups;
+  // Only show Meal Curation for verified cooks
+  let filteredMenuGroups = menuGroups;
+  if (userRole === 'cook' && isVerifiedCook) {
+    filteredMenuGroups = [
+      {
+        title: 'Content',
+        items: [
+          { id: 'mealcuration', label: 'Meal Curation', icon: Salad, path: '/mealcuration' }
+        ]
+      }
+    ];
+  }
 
   return (
     <>

@@ -249,10 +249,10 @@ export const cacheInvalidationPatterns = {
   mealDeleted: ['getAllMeals', 'getArchivedMeals', 'getMealById', 'getDashboardStats'],
 
   // Ingredient-related operations
-  ingredientCreated: ['getAllIngredients', 'getArchivedIngredients', 'getDashboardStats'],
-  ingredientUpdated: ['getAllIngredients', 'getArchivedIngredients', 'getDashboardStats'],
-  ingredientArchived: ['getAllIngredients', 'getArchivedIngredients', 'getDashboardStats'],
-  ingredientRestored: ['getAllIngredients', 'getArchivedIngredients', 'getDashboardStats'],
+  ingredientCreated: ['getAllIngredients', 'getAllIngredientsForAdmin', 'getArchivedIngredients', 'getDashboardStats'],
+  ingredientUpdated: ['getAllIngredients', 'getAllIngredientsForAdmin', 'getArchivedIngredients', 'getDashboardStats'],
+  ingredientArchived: ['getAllIngredients', 'getAllIngredientsForAdmin', 'getArchivedIngredients', 'getDashboardStats'],
+  ingredientRestored: ['getAllIngredients', 'getAllIngredientsForAdmin', 'getArchivedIngredients', 'getDashboardStats'],
 
   // User-related operations
   userCreated: ['fetchUsers', 'fetchUsersFromProfiles', 'getDashboardStats'],

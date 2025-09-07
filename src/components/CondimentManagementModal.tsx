@@ -1,6 +1,7 @@
 import { Archive, Edit, Package, RefreshCw, Search, X } from 'lucide-react';
 import React, { useEffect, useState } from 'react';
 import { toast } from 'sonner';
+import { useAuth } from '../contexts/AuthContext';
 import { useModal } from '../contexts/ModalContext';
 import { getAllCondiments, toggleCondimentArchiveStatus } from '../lib/supabaseQueries';
 import type { Condiment, CondimentUnitType } from '../types';
@@ -16,6 +17,7 @@ export const CondimentManagementModal: React.FC<CondimentManagementModalProps> =
   isOpen,
   onClose
 }) => {
+  const { userRole, user } = useAuth();
   const [condiments, setCondiments] = useState<Condiment[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedUnitType, setSelectedUnitType] = useState<CondimentUnitType | 'All'>('All');
@@ -24,13 +26,31 @@ export const CondimentManagementModal: React.FC<CondimentManagementModalProps> =
 
   const { openEditCondimentModal, openCreateCondimentModal } = useModal();
 
+  const isAdmin = userRole === 'admin';
+  const isCook = userRole === 'cook';
+
   const loadCondiments = async () => {
     setIsLoading(true);
     try {
       const result = await getAllCondiments();
       
       if (result.success && result.data) {
-        setCondiments(result.data);
+        let filteredData = result.data;
+        
+        // Filter based on user role
+        if (isCook && user) {
+          // Cooks only see their own condiments
+          filteredData = result.data.filter(condiment => 
+            condiment.isbycook && condiment.profile_id === user.id
+          );
+        } else if (isAdmin) {
+          // Admins only see admin-created condiments (not created by cooks)
+          filteredData = result.data.filter(condiment => 
+            !condiment.isbycook
+          );
+        }
+        
+        setCondiments(filteredData);
       } else {
         toast.error(result.error || 'Failed to load condiments');
       }
@@ -45,7 +65,7 @@ export const CondimentManagementModal: React.FC<CondimentManagementModalProps> =
     if (isOpen) {
       loadCondiments();
     }
-  }, [isOpen]);
+  }, [isOpen, userRole, user?.id]);
 
   // Listen for condiment updates
   useEffect(() => {
@@ -60,7 +80,7 @@ export const CondimentManagementModal: React.FC<CondimentManagementModalProps> =
       window.removeEventListener('condimentSaved', handleCondimentUpdate);
       window.removeEventListener('condimentAdded', handleCondimentUpdate);
     };
-  }, []);
+  }, [userRole, user?.id]);
 
   const handleArchive = async (condimentId: number) => {
     try {
@@ -124,15 +144,17 @@ export const CondimentManagementModal: React.FC<CondimentManagementModalProps> =
             <p className="text-sm text-gray-600">Manage, edit, and archive condiments</p>
           </div>
           <div className="flex items-center gap-2">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={openCreateCondimentModal}
-              className="gap-2 bg-white hover:bg-purple-50 border-purple-200 hover:border-purple-300"
-            >
-              <Package className="w-4 h-4" />
-              Add New Condiment
-            </Button>
+            {(isAdmin || isCook) && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={openCreateCondimentModal}
+                className="gap-2 bg-white hover:bg-purple-50 border-purple-200 hover:border-purple-300"
+              >
+                <Package className="w-4 h-4" />
+                Add New Condiment
+              </Button>
+            )}
             <Button variant="ghost" size="sm" onClick={onClose} className="hover:bg-white/70">
               <X className="w-4 h-4" />
             </Button>
@@ -169,16 +191,18 @@ export const CondimentManagementModal: React.FC<CondimentManagementModalProps> =
               {/* Removed piece & bottle for precision */}
             </select>
 
-            {/* Show Archived Toggle */}
-            <label className="flex items-center gap-2 text-sm">
-              <input
-                type="checkbox"
-                checked={showArchived}
-                onChange={(e) => setShowArchived(e.target.checked)}
-                className="rounded border-gray-300 text-purple-600 focus:ring-purple-500"
-              />
-              Show Archived
-            </label>
+            {/* Show Archived Toggle - Only for admins */}
+            {isAdmin && (
+              <label className="flex items-center gap-2 text-sm">
+                <input
+                  type="checkbox"
+                  checked={showArchived}
+                  onChange={(e) => setShowArchived(e.target.checked)}
+                  className="rounded border-gray-300 text-purple-600 focus:ring-purple-500"
+                />
+                Show Archived
+              </label>
+            )}
 
             {/* Refresh */}
             <Button
@@ -267,36 +291,48 @@ export const CondimentManagementModal: React.FC<CondimentManagementModalProps> =
 
                   {/* Actions */}
                   <div className="mt-4 flex gap-2">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => handleEdit(condiment)}
-                      className="flex-1 text-xs py-1.5 gap-1 hover:bg-blue-50 hover:border-blue-300 hover:text-blue-700"
-                    >
-                      <Edit className="w-3 h-3" />
-                      Edit
-                    </Button>
-                    
-                    {condiment.is_archived ? (
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => handleRestore(condiment.condiment_id)}
-                        className="flex-1 text-xs py-1.5 gap-1 hover:bg-green-50 hover:border-green-300 hover:text-green-700"
-                      >
-                        <RefreshCw className="w-3 h-3" />
-                        Restore
-                      </Button>
+                    {isAdmin || (isCook && condiment.isbycook && condiment.profile_id === user?.id) ? (
+                      <>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => handleEdit(condiment)}
+                          className="flex-1 text-xs py-1.5 gap-1 hover:bg-blue-50 hover:border-blue-300 hover:text-blue-700"
+                        >
+                          <Edit className="w-3 h-3" />
+                          Edit
+                        </Button>
+                        
+                        {isAdmin && (
+                          <>
+                            {condiment.is_archived ? (
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => handleRestore(condiment.condiment_id)}
+                                className="flex-1 text-xs py-1.5 gap-1 hover:bg-green-50 hover:border-green-300 hover:text-green-700"
+                              >
+                                <RefreshCw className="w-3 h-3" />
+                                Restore
+                              </Button>
+                            ) : (
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => handleArchive(condiment.condiment_id)}
+                                className="flex-1 text-xs py-1.5 gap-1 hover:bg-red-50 hover:border-red-300 hover:text-red-700"
+                              >
+                                <Archive className="w-3 h-3" />
+                                Archive
+                              </Button>
+                            )}
+                          </>
+                        )}
+                      </>
                     ) : (
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => handleArchive(condiment.condiment_id)}
-                        className="flex-1 text-xs py-1.5 gap-1 hover:bg-red-50 hover:border-red-300 hover:text-red-700"
-                      >
-                        <Archive className="w-3 h-3" />
-                        Archive
-                      </Button>
+                      <div className="text-xs text-gray-500 text-center w-full py-2">
+                        {isAdmin ? 'Admin Condiment' : 'My Condiment'}
+                      </div>
                     )}
                   </div>
                 </div>

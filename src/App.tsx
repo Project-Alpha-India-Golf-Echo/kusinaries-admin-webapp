@@ -20,6 +20,7 @@ import { GrantPage } from './pages/GrantPage'
 import { HistoryPage } from './pages/HistoryPage'
 import { IngredientsPage } from './pages/IngredientsPage'
 import { MealCurationPage } from './pages/MealCurationPage'
+import { MealSubmissionsPage } from './pages/MealSubmissionsPage'
 import { SettingsPage } from './pages/SettingsPage'
 import { UsersPage } from './pages/UsersPage'
 
@@ -74,6 +75,7 @@ function AppContent() {
           <Route path="ingredients" element={<IngredientsPage />} />
           <Route path="history" element={<HistoryPage />} />
           <Route path="grants" element={<GrantPage />} />
+          <Route path="mealsubmissions" element={<MealSubmissionsPage />} />
           
           {/* Nested routes for modals */}
           

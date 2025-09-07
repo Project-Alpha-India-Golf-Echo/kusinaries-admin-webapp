@@ -1,11 +1,12 @@
 import {
-  FileUpload, FileUploadDropzone, FileUploadItem, FileUploadItemDelete,
-  FileUploadItemMetadata, FileUploadItemPreview, FileUploadList, FileUploadTrigger,
+    FileUpload, FileUploadDropzone, FileUploadItem, FileUploadItemDelete,
+    FileUploadItemMetadata, FileUploadItemPreview, FileUploadList, FileUploadTrigger,
 } from "@/components/ui/file-upload";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Loader2, Upload, X } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { toast } from "sonner";
+import { useAuth } from '../contexts/AuthContext';
 import { updateImageInStorage, uploadImageToStorage } from '../lib/storageUtils';
 import { createCondiment, updateCondiment } from '../lib/supabaseQueries';
 import type { Condiment, CondimentUnitType } from '../types';
@@ -26,6 +27,7 @@ export const CreateEditCondimentModal: React.FC<CreateEditCondimentModalProps> =
   onCondimentSaved,
   editingCondiment
 }) => {
+  const { userRole, user } = useAuth();
   const [formData, setFormData] = useState({
     name: '',
     unit_type: 'ml' as CondimentUnitType,
@@ -36,6 +38,7 @@ export const CreateEditCondimentModal: React.FC<CreateEditCondimentModalProps> =
   const [isLoading, setIsLoading] = useState(false);
 
   const isEditing = !!editingCondiment;
+  const isCook = userRole === 'cook';
 
   // Initialize form data when modal opens or editing condiment changes
   useEffect(() => {
@@ -113,7 +116,10 @@ export const CreateEditCondimentModal: React.FC<CreateEditCondimentModalProps> =
         package_price: packagePrice,
         package_quantity: packageQuantity,
         image_url: imageUrl,
-        is_archived: false
+        ...(isCook && user ? {
+          isbycook: true,
+          profile_id: user.id
+        } : {})
       };
 
       if (isEditing) {
