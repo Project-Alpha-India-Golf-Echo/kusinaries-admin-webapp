@@ -439,13 +439,13 @@ export const fetchUsers = async (params: {
 // ============================================
 
 import type {
-    CondimentUnitType,
-    CreateMealData,
-    DietaryTag,
-    Ingredient,
-    IngredientCategory,
-    IngredientUnitType,
-    Meal
+  CondimentUnitType,
+  CreateMealData,
+  DietaryTag,
+  Ingredient,
+  IngredientCategory,
+  IngredientUnitType,
+  Meal
 } from '../types'; // ===== INGREDIENT QUERIES =====
 
 // Get all ingredients (only active/non-archived by default) (cached)
@@ -949,7 +949,8 @@ export const createMeal = async (mealData: CreateMealData): Promise<{ success: b
       const ingredientRows = mealData.ingredients.map(i => ({
         meal_id: mealId,
         ingredient_id: i.ingredient_id,
-        quantity: i.quantity
+        quantity: i.quantity,
+        is_eaten_separately: i.is_eaten_separately || false
       }));
       const { error: ingError } = await supabase
         .from('meal_ingredients')
@@ -1103,7 +1104,12 @@ export const updateMeal = async (id: string, mealData: Partial<CreateMealData>):
         return { success: false, error: 'Failed to update meal ingredients' };
       }
       if (mealData.ingredients.length > 0) {
-        const rows = mealData.ingredients.map(i => ({ meal_id: parseInt(id), ingredient_id: i.ingredient_id, quantity: i.quantity }));
+        const rows = mealData.ingredients.map(i => ({ 
+          meal_id: parseInt(id), 
+          ingredient_id: i.ingredient_id, 
+          quantity: i.quantity,
+          is_eaten_separately: i.is_eaten_separately || false
+        }));
         console.log('Attempting to insert meal_ingredients:', rows);
         console.log('Current user context:', { user: (await supabase.auth.getUser()).data.user?.id });
         
@@ -1247,6 +1253,7 @@ export const duplicateMeal = async (id: number): Promise<{ success: boolean; err
       meal_id: newMealId,
       ingredient_id: mi.ingredient_id,
       quantity: mi.quantity,
+      is_eaten_separately: mi.is_eaten_separately || false,
     }));
     if (srcIngredients.length) {
       const { error } = await supabase.from('meal_ingredients').insert(srcIngredients);

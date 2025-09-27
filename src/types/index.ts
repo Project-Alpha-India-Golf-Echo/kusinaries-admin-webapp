@@ -80,6 +80,7 @@ export interface MealIngredient {
   meal_id: number;
   ingredient_id: number;
   quantity: string;
+  is_eaten_separately?: boolean; // true if this fruit is eaten separately (not cooked in the meal)
   ingredient?: Ingredient; // Populated when joining tables
   ingredients?: Ingredient; // Alternative field name from Supabase queries
 }
@@ -120,6 +121,7 @@ export interface CreateMealData {
   ingredients: {
     ingredient_id: number;
     quantity: string;
+    is_eaten_separately?: boolean;
   }[];
   condiments?: {
     condiment_id: number;

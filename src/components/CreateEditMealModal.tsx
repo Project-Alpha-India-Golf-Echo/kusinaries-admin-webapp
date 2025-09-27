@@ -498,15 +498,27 @@ export const CreateEditMealModal: React.FC<CreateEditMealModalProps> = ({
           recipe: editingMeal.recipe || ''
         });
 
-        // Populate ingredients
+        // Populate ingredients - separate regular ingredients from fruits eaten separately
         if (editingMeal.meal_ingredients && editingMeal.meal_ingredients.length > 0) {
-          const ingredients = editingMeal.meal_ingredients.map(mi => ({
-            ingredient_id: mi.ingredient_id,
-            quantity: mi.quantity
-          }));
-          setSelectedIngredients(ingredients);
+          const regularIngredients = editingMeal.meal_ingredients
+            .filter(mi => !mi.is_eaten_separately)
+            .map(mi => ({
+              ingredient_id: mi.ingredient_id,
+              quantity: mi.quantity
+            }));
+          
+          const separateFruits = editingMeal.meal_ingredients
+            .filter(mi => mi.is_eaten_separately)
+            .map(mi => ({
+              ingredient_id: mi.ingredient_id,
+              quantity: mi.quantity
+            }));
+          
+          setSelectedIngredients(regularIngredients);
+          setFruitsEatenSeparately(separateFruits);
         } else {
           setSelectedIngredients([]);
+          setFruitsEatenSeparately([]);
         }
 
         // Populate condiments
@@ -527,9 +539,6 @@ export const CreateEditMealModal: React.FC<CreateEditMealModalProps> = ({
         } else {
           setSelectedDietaryTags([]);
         }
-
-        // Initialize fruits eaten separately as empty for existing meals (new feature)
-        setFruitsEatenSeparately([]);
 
         setSelectedImage(null);
         setValidationErrors([]);
@@ -672,8 +681,14 @@ export const CreateEditMealModal: React.FC<CreateEditMealModalProps> = ({
 
       // Combine regular ingredients with fruits eaten separately
       const allIngredients = [
-        ...selectedIngredients.filter(item => item.quantity.trim()),
-        ...fruitsEatenSeparately.filter(item => item.quantity.trim())
+        ...selectedIngredients.filter(item => item.quantity.trim()).map(item => ({
+          ...item,
+          is_eaten_separately: false
+        })),
+        ...fruitsEatenSeparately.filter(item => item.quantity.trim()).map(item => ({
+          ...item,
+          is_eaten_separately: true
+        }))
       ];
 
       const mealData: CreateMealData = {
