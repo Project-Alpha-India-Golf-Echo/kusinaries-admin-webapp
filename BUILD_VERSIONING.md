@@ -39,3 +39,4 @@ In CI you can enforce generation by running `npm run build`. If you create ephem
 ## Troubleshooting
 - If footer shows `dev`, ensure you ran `npm run build` not just `vite` dev server.
 - If git fields show `unknown`, the build environment lacks a `.git` directory.
+# Repository made public - triggering redeploy
