@@ -3,16 +3,27 @@ import {
   FileUploadItemMetadata, FileUploadItemPreview, FileUploadList, FileUploadTrigger,
 } from "@/components/ui/file-upload";
 import { Textarea } from "@/components/ui/textarea";
-import { Calculator, Loader2, Settings, Trash2, Upload, X } from 'lucide-react';
+import { Calculator, Loader2, Plus, Settings, Trash2, Upload, X } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { toast } from "sonner";
 import { useAuth } from '../contexts/AuthContext';
 import { useModal } from '../contexts/ModalContext';
+import { invalidateCache } from '../lib/cache';
 import { updateImageInStorage, uploadImageToStorage, validateImageFileForStorage } from '../lib/storageUtils';
-import { createMeal, getAllCondiments, getAllCondimentsForAdmin, getAllDietaryTags, getAllIngredients, getAllIngredientsForAdmin, updateMeal } from '../lib/supabaseQueries';
+import { createDietaryTag, createMeal, disableDietaryTag, getAllCondiments, getAllCondimentsForAdmin, getAllDietaryTags, getAllIngredients, getAllIngredientsForAdmin, updateMeal } from '../lib/supabaseQueries';
 import type { Condiment, CreateMealData, DietaryTag, Ingredient, Meal, MealCategory } from '../types';
 import { CondimentSection } from './CondimentSection';
 import { IngredientSection } from './IngredientSection';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from './ui/alert-dialog';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
 import { Label } from './ui/label';
@@ -40,6 +51,7 @@ export const CreateEditMealModal: React.FC<CreateEditMealModalProps> = ({
   const [selectedIngredients, setSelectedIngredients] = useState<{ ingredient_id: number; quantity: string }[]>([]);
   const [selectedCondiments, setSelectedCondiments] = useState<{ condiment_id: number; quantity: string }[]>([]);
   const [selectedDietaryTags, setSelectedDietaryTags] = useState<number[]>([]);
+  const [fruitsEatenSeparately, setFruitsEatenSeparately] = useState<{ ingredient_id: number; quantity: string }[]>([]); // fruits to be eaten separately with quantities
   const [dietaryTags, setDietaryTags] = useState<DietaryTag[]>([]);
   const [allIngredients, setAllIngredients] = useState<Ingredient[]>([]);
   const [allCondiments, setAllCondiments] = useState<Condiment[]>([]);
@@ -48,6 +60,15 @@ export const CreateEditMealModal: React.FC<CreateEditMealModalProps> = ({
   const [validationErrors, setValidationErrors] = useState<string[]>([]);
   const [showConfirm, setShowConfirm] = useState(false);
   const [lastPopulatedMealId, setLastPopulatedMealId] = useState<number | null>(null);
+
+  // Dietary tag management state
+  const [newTagName, setNewTagName] = useState('');
+  const [isCreatingTag, setIsCreatingTag] = useState(false);
+  const [tagError, setTagError] = useState('');
+  const [tagToDisable, setTagToDisable] = useState<DietaryTag | null>(null);
+  const [isDisableOpen, setIsDisableOpen] = useState(false);
+  const [isDisabling, setIsDisabling] = useState(false);
+  const [isAddOpen, setIsAddOpen] = useState(false);
 
   // Helper functions for rejected meals
   const isRejectedMeal = editingMeal?.isbycook && editingMeal?.rejected;
@@ -109,6 +130,7 @@ export const CreateEditMealModal: React.FC<CreateEditMealModalProps> = ({
       selectedIngredients,
       selectedCondiments,
       selectedDietaryTags,
+      fruitsEatenSeparately,
       timestamp: Date.now()
     };
     
@@ -146,6 +168,7 @@ export const CreateEditMealModal: React.FC<CreateEditMealModalProps> = ({
         setSelectedIngredients(cacheData.selectedIngredients || []);
         setSelectedCondiments(cacheData.selectedCondiments || []);
         setSelectedDietaryTags(cacheData.selectedDietaryTags || []);
+        setFruitsEatenSeparately(cacheData.fruitsEatenSeparately || []);
         return true;
       }
     } catch (error) {
@@ -171,6 +194,7 @@ export const CreateEditMealModal: React.FC<CreateEditMealModalProps> = ({
     setSelectedIngredients([]);
     setSelectedCondiments([]);
     setSelectedDietaryTags([]);
+    setFruitsEatenSeparately([]);
     setSelectedImage(null);
     setValidationErrors([]);
     clearCache();
@@ -185,6 +209,7 @@ export const CreateEditMealModal: React.FC<CreateEditMealModalProps> = ({
            selectedIngredients.length > 0 || 
            selectedCondiments.length > 0 || 
            selectedDietaryTags.length > 0 ||
+           fruitsEatenSeparately.length > 0 ||
            selectedImage !== null;
   };
 
@@ -250,6 +275,26 @@ export const CreateEditMealModal: React.FC<CreateEditMealModalProps> = ({
     return () => {
       window.removeEventListener('condimentSaved', handleCondimentUpdate);
       window.removeEventListener('condimentAdded', handleCondimentUpdate);
+    };
+  }, []);
+
+  // Listen for dietary tag updates
+  useEffect(() => {
+    const handleDietaryTagUpdate = async () => {
+      try {
+        const dietaryTagsResult = await getAllDietaryTags();
+        if (dietaryTagsResult.success && dietaryTagsResult.data) {
+          setDietaryTags(dietaryTagsResult.data);
+        }
+      } catch (error) {
+        console.error('Error reloading dietary tags:', error);
+      }
+    };
+
+    window.addEventListener('dietaryTagChanged', handleDietaryTagUpdate);
+    
+    return () => {
+      window.removeEventListener('dietaryTagChanged', handleDietaryTagUpdate);
     };
   }, []);
 
@@ -407,7 +452,7 @@ export const CreateEditMealModal: React.FC<CreateEditMealModalProps> = ({
       const timeoutId = setTimeout(saveToCache, 500); // Debounce cache saves
       return () => clearTimeout(timeoutId);
     }
-  }, [selectedIngredients, selectedCondiments, allIngredients, allCondiments, formData, selectedDietaryTags, editingMeal, isOpen]);
+  }, [selectedIngredients, selectedCondiments, allIngredients, allCondiments, formData, selectedDietaryTags, fruitsEatenSeparately, editingMeal, isOpen]);
 
   // Handle modal open/close and basic form reset
   useEffect(() => {
@@ -424,6 +469,7 @@ export const CreateEditMealModal: React.FC<CreateEditMealModalProps> = ({
         setSelectedIngredients([]);
         setSelectedCondiments([]);
         setSelectedDietaryTags([]);
+        setFruitsEatenSeparately([]);
         setSelectedImage(null);
       }
       setValidationErrors([]);
@@ -482,6 +528,9 @@ export const CreateEditMealModal: React.FC<CreateEditMealModalProps> = ({
           setSelectedDietaryTags([]);
         }
 
+        // Initialize fruits eaten separately as empty for existing meals (new feature)
+        setFruitsEatenSeparately([]);
+
         setSelectedImage(null);
         setValidationErrors([]);
         setShowConfirm(false);
@@ -496,25 +545,38 @@ export const CreateEditMealModal: React.FC<CreateEditMealModalProps> = ({
     // track glow subcategories
     let hasGlowVegetable = false;
     let hasGlowFruit = false;
+    
+    // Check regular selected ingredients (but exclude fruits in meal for the requirement)
     selectedIngredients.forEach(sel => {
       const ing = allIngredients.find(i => i.ingredient_id === sel.ingredient_id);
       if (ing) {
         categories.add(ing.category);
         if (ing.category === 'Glow') {
           if (ing.glow_subcategory === 'Vegetables') hasGlowVegetable = true;
-          if (ing.glow_subcategory === 'Fruits') hasGlowFruit = true;
+          // Don't count fruits from regular ingredients for the requirement
         }
       }
     });
+    
+    // Only count fruits that are eaten separately for the requirement
+    fruitsEatenSeparately.forEach(sel => {
+      if (!sel.quantity.trim()) return; // only count when quantity provided
+      const ing = allIngredients.find(i => i.ingredient_id === sel.ingredient_id);
+      if (ing && ing.category === 'Glow' && ing.glow_subcategory === 'Fruits') {
+        categories.add(ing.category);
+        hasGlowFruit = true;
+      }
+    });
+    
     return { categories, hasGlowVegetable, hasGlowFruit };
-  }, [selectedIngredients, allIngredients]);
+  }, [selectedIngredients, allIngredients, fruitsEatenSeparately]);
 
   const allCategoriesPresent = ['Go', 'Grow', 'Glow'].every(cat => ingredientCategoryCoverage.categories.has(cat));
   const glowSubcategoriesPresent = ingredientCategoryCoverage.hasGlowVegetable && ingredientCategoryCoverage.hasGlowFruit;
 
   // Counts per category (and glow subcategories) for quick UI indicators
   const categoryCounts = useMemo(() => {
-    let go = 0, grow = 0, glow = 0, glowVegetables = 0, glowFruits = 0;
+    let go = 0, grow = 0, glow = 0, glowVegetables = 0, glowFruits = 0, glowFruitsSeparate = 0;
     selectedIngredients.forEach(sel => {
       if (!sel.quantity.trim()) return; // only count when quantity provided
       const ing = allIngredients.find(i => i.ingredient_id === sel.ingredient_id);
@@ -524,11 +586,23 @@ export const CreateEditMealModal: React.FC<CreateEditMealModalProps> = ({
       if (ing.category === 'Glow') {
         glow++;
         if (ing.glow_subcategory === 'Vegetables') glowVegetables++;
-        if (ing.glow_subcategory === 'Fruits') glowFruits++;
+        if (ing.glow_subcategory === 'Fruits') {
+          glowFruits++;
+        }
       }
     });
-    return { go, grow, glow, glowVegetables, glowFruits };
-  }, [selectedIngredients, allIngredients]);
+
+    // Also count fruits eaten separately
+    fruitsEatenSeparately.forEach(sel => {
+      const ing = allIngredients.find(i => i.ingredient_id === sel.ingredient_id);
+      if (ing && ing.category === 'Glow' && ing.glow_subcategory === 'Fruits') {
+        glow++;
+        glowFruitsSeparate++;
+      }
+    });
+
+    return { go, grow, glow, glowVegetables, glowFruits, glowFruitsSeparate };
+  }, [selectedIngredients, allIngredients, fruitsEatenSeparately]);
 
   // Validate quantities format: number with optional decimal + optional unit
   const quantityPattern = /^(?=\S)(?=.*\d)(?:\d+\.?\d*|\d*\.\d+)?\s*(g|kg|cup|cups|piece|pieces|tbsp|tsp)?$/i;
@@ -543,17 +617,20 @@ export const CreateEditMealModal: React.FC<CreateEditMealModalProps> = ({
     const isBestForSnacks = formData.category.includes('Best for Snacks');
     if (!isBestForSnacks) {
       if (!allCategoriesPresent) errors.push('Include at least one Go, one Grow, and one Glow ingredient');
-      if (allCategoriesPresent && !glowSubcategoriesPresent) errors.push('For Glow, include at least one Vegetable and one Fruit');
+      if (allCategoriesPresent && !glowSubcategoriesPresent) errors.push('For Glow, include at least one Vegetable and one Fruit (eaten separately)');
     }
     
     const missingQty = selectedIngredients.filter(i => !i.quantity.trim());
-    if (missingQty.length) errors.push('Provide quantity for every selected ingredient');
+    const missingSeparateFruitQty = fruitsEatenSeparately.filter(i => !i.quantity.trim());
+    if (missingQty.length || missingSeparateFruitQty.length) errors.push('Provide quantity for every selected ingredient');
+    
     const badFormat = selectedIngredients.filter(i => i.quantity && !quantityPattern.test(i.quantity.trim()));
-    if (badFormat.length) errors.push('Use valid quantity format (e.g., 250g, 0.5kg, 1 cup, 2 pieces, 1 tbsp)');
+    const badFormatSeparateFruits = fruitsEatenSeparately.filter(i => i.quantity && !quantityPattern.test(i.quantity.trim()));
+    if (badFormat.length || badFormatSeparateFruits.length) errors.push('Use valid quantity format (e.g., 250g, 0.5kg, 1 cup, 2 pieces, 1 tbsp)');
     return errors;
   };
 
-  const canSubmit = useMemo(() => computeValidationErrors().length === 0, [formData, selectedIngredients, allCategoriesPresent, glowSubcategoriesPresent]);
+  const canSubmit = useMemo(() => computeValidationErrors().length === 0, [formData, selectedIngredients, fruitsEatenSeparately, allCategoriesPresent, glowSubcategoriesPresent]);
 
   // First stage: validation then open confirmation dialog
   const handleSubmit = (e: React.FormEvent) => {
@@ -593,12 +670,18 @@ export const CreateEditMealModal: React.FC<CreateEditMealModalProps> = ({
       }
       console.log("user?.id:", user?.id);
 
+      // Combine regular ingredients with fruits eaten separately
+      const allIngredients = [
+        ...selectedIngredients.filter(item => item.quantity.trim()),
+        ...fruitsEatenSeparately.filter(item => item.quantity.trim())
+      ];
+
       const mealData: CreateMealData = {
         name: formData.name.trim(),
         category: formData.category,
         recipe: formData.recipe.trim() || undefined,
         image_url: imageUrl,
-        ingredients: selectedIngredients.filter(item => item.quantity.trim()),
+        ingredients: allIngredients,
         condiments: selectedCondiments.filter(item => item.quantity.trim()),
         dietary_tag_ids: selectedDietaryTags,
         ...(userRole === 'cook' && isVerifiedCook && user ? {
@@ -631,22 +714,49 @@ export const CreateEditMealModal: React.FC<CreateEditMealModalProps> = ({
     setFormData(prev => ({ ...prev, [field]: value }));
   };
 
-  const handleIngredientSelect = (ingredient: Ingredient) => {
-    if (!selectedIngredients.some(item => item.ingredient_id === ingredient.ingredient_id)) {
-      setSelectedIngredients(prev => [...prev, { ingredient_id: ingredient.ingredient_id, quantity: '' }]);
+  const handleIngredientSelect = (ingredient: Ingredient, isEatenSeparately?: boolean) => {
+    if (ingredient.glow_subcategory === 'Fruits') {
+      if (isEatenSeparately) {
+        // Add to eaten separately list
+        if (!fruitsEatenSeparately.some(item => item.ingredient_id === ingredient.ingredient_id)) {
+          setFruitsEatenSeparately(prev => [...prev, { ingredient_id: ingredient.ingredient_id, quantity: '' }]);
+        }
+      } else {
+        // Add to regular selected ingredients (in meal)
+        if (!selectedIngredients.some(item => item.ingredient_id === ingredient.ingredient_id)) {
+          setSelectedIngredients(prev => [...prev, { ingredient_id: ingredient.ingredient_id, quantity: '' }]);
+        }
+      }
+    } else {
+      // For non-fruits, use normal behavior
+      if (!selectedIngredients.some(item => item.ingredient_id === ingredient.ingredient_id)) {
+        setSelectedIngredients(prev => [...prev, { ingredient_id: ingredient.ingredient_id, quantity: '' }]);
+      }
     }
   };
 
-  const handleIngredientRemove = (ingredientId: number) => {
-    setSelectedIngredients(prev => prev.filter(item => item.ingredient_id !== ingredientId));
+  const handleIngredientRemove = (ingredientId: number, isEatenSeparately?: boolean) => {
+    if (isEatenSeparately) {
+      setFruitsEatenSeparately(prev => prev.filter(item => item.ingredient_id !== ingredientId));
+    } else {
+      setSelectedIngredients(prev => prev.filter(item => item.ingredient_id !== ingredientId));
+    }
   };
 
-  const handleQuantityChange = (ingredientId: number, quantity: string) => {
-    setSelectedIngredients(prev =>
-      prev.map(item =>
-        item.ingredient_id === ingredientId ? { ...item, quantity } : item
-      )
-    );
+  const handleQuantityChange = (ingredientId: number, quantity: string, isEatenSeparately?: boolean) => {
+    if (isEatenSeparately) {
+      setFruitsEatenSeparately(prev =>
+        prev.map(item =>
+          item.ingredient_id === ingredientId ? { ...item, quantity } : item
+        )
+      );
+    } else {
+      setSelectedIngredients(prev =>
+        prev.map(item =>
+          item.ingredient_id === ingredientId ? { ...item, quantity } : item
+        )
+      );
+    }
   };
 
   const handleCondimentSelect = (condiment: Condiment) => {
@@ -667,12 +777,81 @@ export const CreateEditMealModal: React.FC<CreateEditMealModalProps> = ({
     setSelectedCondiments(prev => prev.filter(item => item.condiment_id !== condimentId));
   };
 
+
+
   const handleDietaryTagToggle = (tagId: number) => {
     setSelectedDietaryTags(prev =>
       prev.includes(tagId)
         ? prev.filter(id => id !== tagId)
         : [...prev, tagId]
     );
+  };
+
+  const handleAddDietaryTag = async () => {
+    const name = newTagName.trim();
+    if (!name) {
+      setTagError('Enter a tag name');
+      return;
+    }
+    setTagError('');
+    setIsCreatingTag(true);
+    try {
+      const result = await createDietaryTag(name);
+      if (result.success && result.data) {
+        // Invalidate cache to ensure fresh data
+        invalidateCache('dietaryTagCreated');
+        
+        // Update local state immediately
+        const dietaryTagsResult = await getAllDietaryTags();
+        if (dietaryTagsResult.success && dietaryTagsResult.data) {
+          setDietaryTags(dietaryTagsResult.data);
+        }
+        
+        // fire event so other components reload tags
+        window.dispatchEvent(new CustomEvent('dietaryTagChanged'));
+        setNewTagName('');
+        setIsAddOpen(false);
+        toast.success('Dietary tag created successfully!');
+      } else {
+        setTagError(result.error || 'Failed to add tag');
+      }
+    } finally {
+      setIsCreatingTag(false);
+    }
+  };
+
+  const openDisableDialog = (tag: DietaryTag) => {
+    setTagToDisable(tag);
+    setIsDisableOpen(true);
+  };
+
+  const confirmDisableTag = async () => {
+    if (!tagToDisable) return;
+    setIsDisabling(true);
+    const res = await disableDietaryTag(tagToDisable.tag_id);
+    if (res.success) {
+      if (selectedDietaryTags?.includes(tagToDisable.tag_id)) {
+        setSelectedDietaryTags(prev => prev.filter(id => id !== tagToDisable.tag_id));
+      }
+      
+      // Invalidate cache to ensure fresh data
+      invalidateCache('dietaryTagDisabled');
+      
+      // Update local state immediately
+      const dietaryTagsResult = await getAllDietaryTags();
+      if (dietaryTagsResult.success && dietaryTagsResult.data) {
+        setDietaryTags(dietaryTagsResult.data);
+      }
+      
+      // fire event so other components reload tags
+      window.dispatchEvent(new CustomEvent('dietaryTagChanged'));
+      setIsDisableOpen(false);
+      setTagToDisable(null);
+      toast.success('Dietary tag disabled successfully!');
+    } else {
+      toast.error('Failed to disable dietary tag');
+    }
+    setIsDisabling(false);
   };
 
   const handleFileReject = useCallback((file: File, message: string) => {
@@ -775,7 +954,7 @@ export const CreateEditMealModal: React.FC<CreateEditMealModalProps> = ({
               <p className="font-semibold text-amber-900">Meal Curation Guidelines</p>
               <ul className="list-disc pl-5 space-y-1 text-amber-800">
                 <li>Portions must reflect a single serving (roughly one standard plate).</li>
-                <li>Include ALL three Pinggang Pinoy groups: at least one <strong>Go</strong> (energy), one <strong>Grow</strong> (protein), and one <strong>Glow</strong> (fruits/vegetables). <em>Note: This requirement is relaxed for "Best for Snacks" category.</em></li>
+                <li>Include ALL three Pinggang Pinoy groups: at least one <strong>Go</strong> (energy), one <strong>Grow</strong> (protein), and one <strong>Glow</strong> (vegetables + fruits eaten separately). <em>Note: This requirement is relaxed for "Best for Snacks" category.</em></li>
                 <li>Quantities should approximate realistic consumption and keep total cost reasonable.</li>
                 <li>Recipe / instructions (optional) should be concise and safe (no unsafe cooking steps).</li>
               </ul>
@@ -902,21 +1081,47 @@ export const CreateEditMealModal: React.FC<CreateEditMealModalProps> = ({
 
             {/* Dietary Tags */}
             <div>
-              <Label>Dietary Tags</Label>
+              <div className="flex items-center mb-2 gap-2">
+                <Label>Dietary Tags</Label>
+              </div>
               <div className="mt-2 flex flex-wrap gap-2">
                 {dietaryTags.map((tag) => (
-                  <button
-                    key={tag.tag_id}
-                    type="button"
-                    onClick={() => handleDietaryTagToggle(tag.tag_id)}
-                    className={`px-3 py-1 rounded-full text-sm transition-colors ${selectedDietaryTags.includes(tag.tag_id)
-                      ? 'bg-green-600 text-white'
-                      : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                      }`}
-                  >
-                    {tag.tag_name}
-                  </button>
+                  <div key={tag.tag_id} className="flex items-center">
+                    <div
+                      className={`flex items-center gap-2 px-3 py-1 rounded-full text-sm transition-colors mr-1 ${selectedDietaryTags?.includes(tag.tag_id)
+                        ? 'bg-green-600 text-white'
+                        : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                        }`}
+                    >
+                      <button
+                        type="button"
+                        onClick={() => handleDietaryTagToggle(tag.tag_id)}
+                        className="flex-1"
+                      >
+                        {tag.tag_name}
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          openDisableDialog(tag);
+                        }}
+                        className="text-gray-400 hover:text-red-600 transition-colors ml-1"
+                        aria-label="Disable tag"
+                      >
+                        <X className="w-4 h-4" />
+                      </button>
+                    </div>
+                  </div>
                 ))}
+                <button
+                  type="button"
+                  onClick={() => { setIsAddOpen(true); setTagError(''); }}
+                  className="flex items-center gap-2 px-3 py-1 rounded-full text-sm transition-colors mr-1 bg-green-100 text-green-700 hover:bg-gray-200"
+                >
+                  <Plus className="w-4 h-4" /> Add new dietary tag
+                </button>
               </div>
             </div>
 
@@ -964,16 +1169,19 @@ export const CreateEditMealModal: React.FC<CreateEditMealModalProps> = ({
                     <span className="text-xs font-medium text-gray-500">Glow Foods</span>
                     <span className="text-lg font-semibold text-gray-800">{categoryCounts.glow}</span>
                   </div>
-                  <div className="flex gap-4 text-[11px]">
+                  <div className="flex gap-2 text-[10px]">
                     <div className={`flex items-center gap-1 ${categoryCounts.glowVegetables ? 'text-green-700' : 'text-gray-400'}`}>
                       <span className="inline-block h-2 w-2 rounded-full bg-green-500" /> Veg {categoryCounts.glowVegetables}
                     </div>
-                    <div className={`flex items-center gap-1 ${categoryCounts.glowFruits ? 'text-green-700' : 'text-gray-400'}`}>
+                    <div className={`flex items-center gap-1 ${categoryCounts.glowFruits ? 'text-orange-700' : 'text-gray-400'}`}>
                       <span className="inline-block h-2 w-2 rounded-full bg-orange-400" /> Fruit {categoryCounts.glowFruits}
+                    </div>
+                    <div className={`flex items-center gap-1 ${categoryCounts.glowFruitsSeparate ? 'text-blue-700' : 'text-gray-400'}`}>
+                      <span className="inline-block h-2 w-2 rounded-full bg-blue-400" /> Sep {categoryCounts.glowFruitsSeparate}
                     </div>
                   </div>
                   <span className={`text-[11px] ${allCategoriesPresent ? (glowSubcategoriesPresent ? 'text-green-600' : 'text-amber-600') : 'text-gray-500'}`}>
-                    {allCategoriesPresent ? (glowSubcategoriesPresent ? 'Balanced coverage achieved' : 'Add a missing Fruit or Vegetable') : 'Need Go / Grow / Glow'}
+                    {allCategoriesPresent ? (glowSubcategoriesPresent ? 'Balanced coverage achieved' : 'Add a missing Vegetable or Fruit (eaten separately)') : 'Need Go / Grow / Glow'}
                   </span>
                 </div>
               </div>
@@ -985,6 +1193,7 @@ export const CreateEditMealModal: React.FC<CreateEditMealModalProps> = ({
                   onIngredientSelect={handleIngredientSelect}
                   onQuantityChange={handleQuantityChange}
                   userRole={userRole || undefined}
+                  fruitsEatenSeparately={fruitsEatenSeparately}
                 />
                 <IngredientSection
                   category="Grow"
@@ -992,6 +1201,7 @@ export const CreateEditMealModal: React.FC<CreateEditMealModalProps> = ({
                   onIngredientSelect={handleIngredientSelect}
                   onQuantityChange={handleQuantityChange}
                   userRole={userRole || undefined}
+                  fruitsEatenSeparately={fruitsEatenSeparately}
                 />
                 <IngredientSection
                   category="Glow"
@@ -999,6 +1209,7 @@ export const CreateEditMealModal: React.FC<CreateEditMealModalProps> = ({
                   onIngredientSelect={handleIngredientSelect}
                   onQuantityChange={handleQuantityChange}
                   userRole={userRole || undefined}
+                  fruitsEatenSeparately={fruitsEatenSeparately}
                 />
               </div>
 
@@ -1027,22 +1238,50 @@ export const CreateEditMealModal: React.FC<CreateEditMealModalProps> = ({
 
               {/* Selected Ingredients Overview */}
               {selectedIngredients.some(si => si.quantity.trim()) && (() => {
-                const groups = (['Go','Grow','Glow'] as const).map(cat => {
-                  const items = selectedIngredients
-                    .map(sel => {
-                      const ing = allIngredients.find(i => i.ingredient_id === sel.ingredient_id && i.category === cat);
-                      return ing ? { ing, quantity: sel.quantity } : null;
-                    })
-                    .filter(Boolean)
-                    .filter(item => item!.quantity.trim()) as { ing: Ingredient; quantity: string }[];
-                  return { cat, items };
-                });
-                const totalConfirmed = groups.reduce((sum,g) => sum + g.items.length,0);
-                const chipColors: Record<string,string> = {
-                  Go: 'bg-yellow-100 text-yellow-800 border-yellow-200',
-                  Grow: 'bg-red-100 text-red-800 border-red-200',
-                  Glow: 'bg-green-100 text-green-800 border-green-200'
-                };
+                // Create groups for Go and Grow
+                const goItems = selectedIngredients
+                  .map(sel => {
+                    const ing = allIngredients.find(i => i.ingredient_id === sel.ingredient_id && i.category === 'Go');
+                    return ing ? { ing, quantity: sel.quantity } : null;
+                  })
+                  .filter(Boolean)
+                  .filter(item => item!.quantity.trim()) as { ing: Ingredient; quantity: string }[];
+
+                const growItems = selectedIngredients
+                  .map(sel => {
+                    const ing = allIngredients.find(i => i.ingredient_id === sel.ingredient_id && i.category === 'Grow');
+                    return ing ? { ing, quantity: sel.quantity } : null;
+                  })
+                  .filter(Boolean)
+                  .filter(item => item!.quantity.trim()) as { ing: Ingredient; quantity: string }[];
+
+                // Create separate groups for Glow subcategories
+                const glowVegetables = selectedIngredients
+                  .map(sel => {
+                    const ing = allIngredients.find(i => i.ingredient_id === sel.ingredient_id && i.category === 'Glow' && i.glow_subcategory === 'Vegetables');
+                    return ing ? { ing, quantity: sel.quantity } : null;
+                  })
+                  .filter(Boolean)
+                  .filter(item => item!.quantity.trim()) as { ing: Ingredient; quantity: string }[];
+
+                const glowFruitsInMeal = selectedIngredients
+                  .map(sel => {
+                    const ing = allIngredients.find(i => i.ingredient_id === sel.ingredient_id && i.category === 'Glow' && i.glow_subcategory === 'Fruits');
+                    return ing ? { ing, quantity: sel.quantity } : null;
+                  })
+                  .filter(Boolean)
+                  .filter(item => item!.quantity.trim()) as { ing: Ingredient; quantity: string }[];
+
+                const glowFruitsSeparate = fruitsEatenSeparately
+                  .map(sel => {
+                    const ing = allIngredients.find(i => i.ingredient_id === sel.ingredient_id && i.category === 'Glow' && i.glow_subcategory === 'Fruits');
+                    return ing ? { ing, quantity: sel.quantity } : null;
+                  })
+                  .filter(Boolean)
+                  .filter(item => item!.quantity.trim()) as { ing: Ingredient; quantity: string }[];
+
+                const totalConfirmed = goItems.length + growItems.length + glowVegetables.length + glowFruitsInMeal.length + glowFruitsSeparate.length;
+                
                 return (
                   <div className="mt-6 border rounded-xl bg-gradient-to-br from-gray-50 to-white shadow-sm">
                     <div className="flex flex-wrap items-center justify-between gap-3 px-5 py-4 border-b bg-white/70 backdrop-blur rounded-t-xl">
@@ -1050,44 +1289,173 @@ export const CreateEditMealModal: React.FC<CreateEditMealModalProps> = ({
                         <span className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-green-600 text-white text-[11px] font-bold">{totalConfirmed}</span>
                         Confirmed Ingredients
                       </h4>
-                      <div className="flex gap-2 text-[11px]">
-                        {groups.map(g => (
-                          <span key={g.cat} className={`inline-flex items-center gap-1 rounded-full border px-2 py-1 font-medium ${chipColors[g.cat]}`}> {g.cat} <span className="text-[10px] font-semibold">{g.items.length}</span></span>
-                        ))}
+                      <div className="flex gap-2 text-[11px] flex-wrap">
+                        <span className="inline-flex items-center gap-1 rounded-full border px-2 py-1 font-medium bg-yellow-100 text-yellow-800 border-yellow-200">
+                          Go <span className="text-[10px] font-semibold">{goItems.length}</span>
+                        </span>
+                        <span className="inline-flex items-center gap-1 rounded-full border px-2 py-1 font-medium bg-red-100 text-red-800 border-red-200">
+                          Grow <span className="text-[10px] font-semibold">{growItems.length}</span>
+                        </span>
+                        <span className="inline-flex items-center gap-1 rounded-full border px-2 py-1 font-medium bg-green-100 text-green-800 border-green-200">
+                          Glow <span className="text-[10px] font-semibold">{glowVegetables.length + glowFruitsInMeal.length + glowFruitsSeparate.length}</span>
+                        </span>
                       </div>
                     </div>
-                    <div className="grid md:grid-cols-3 gap-5 p-5">
-                      {groups.map(g => (
-                        <div key={g.cat} className="relative flex flex-col rounded-lg border bg-white/60 backdrop-blur-sm p-3 shadow-inner">
-                          <div className="flex items-center justify-between mb-2">
-                            <p className="font-medium text-sm tracking-wide text-gray-700 flex items-center gap-2">
-                              <span className={`inline-block h-2.5 w-2.5 rounded-full ${g.cat==='Go'?'bg-yellow-400':g.cat==='Grow'?'bg-red-400':'bg-green-400'}`} />
-                              {g.cat}
-                              <span className="text-xs font-normal text-gray-400">{g.items.length}</span>
-                            </p>
-                          </div>
-                          {g.items.length === 0 ? (
-                            <p className="text-xs italic text-gray-400">None selected</p>
-                          ) : (
-                            <ul className="space-y-1 max-h-44 overflow-y-auto pr-1 custom-scroll">
-                              {g.items.map(item => (
-                                <li key={item.ing.ingredient_id} className="group flex items-center gap-2 rounded-md border border-transparent hover:border-gray-200 bg-white/70 px-2 py-1 text-xs transition-colors">
-                                  <span className="flex-1 truncate font-medium text-gray-700" title={item.ing.name}>{item.ing.name}</span>
-                                  <span className="text-gray-500 font-mono text-[11px] px-1 rounded bg-gray-100">{item.quantity}</span>
-                                  <button
-                                    type="button"
-                                    onClick={() => handleIngredientRemove(item.ing.ingredient_id)}
-                                    className="opacity-60 hover:opacity-100 text-red-500 hover:text-red-600 transition-colors"
-                                    aria-label={`Remove ${item.ing.name}`}
-                                  >
-                                    ×
-                                  </button>
-                                </li>
-                              ))}
-                            </ul>
-                          )}
+                    <div className="grid md:grid-cols-2 lg:grid-cols-5 gap-4 p-5">
+                      {/* Go Foods */}
+                      <div className="relative flex flex-col rounded-lg border bg-white/60 backdrop-blur-sm p-3 shadow-inner">
+                        <div className="flex items-center justify-between mb-2">
+                          <p className="font-medium text-sm tracking-wide text-gray-700 flex items-center gap-2">
+                            <span className="inline-block h-2.5 w-2.5 rounded-full bg-yellow-400" />
+                            Go
+                            <span className="text-xs font-normal text-gray-400">{goItems.length}</span>
+                          </p>
                         </div>
-                      ))}
+                        {goItems.length === 0 ? (
+                          <p className="text-xs italic text-gray-400">None selected</p>
+                        ) : (
+                          <ul className="space-y-1 max-h-44 overflow-y-auto pr-1 custom-scroll">
+                            {goItems.map(item => (
+                              <li key={item.ing.ingredient_id} className="group flex items-center gap-2 rounded-md border border-transparent hover:border-gray-200 bg-white/70 px-2 py-1 text-xs transition-colors">
+                                <span className="flex-1 truncate font-medium text-gray-700" title={item.ing.name}>{item.ing.name}</span>
+                                <span className="text-gray-500 font-mono text-[11px] px-1 rounded bg-gray-100">{item.quantity}</span>
+                                <button
+                                  type="button"
+                                  onClick={() => handleIngredientRemove(item.ing.ingredient_id)}
+                                  className="opacity-60 hover:opacity-100 text-red-500 hover:text-red-600 transition-colors"
+                                  aria-label={`Remove ${item.ing.name}`}
+                                >
+                                  ×
+                                </button>
+                              </li>
+                            ))}
+                          </ul>
+                        )}
+                      </div>
+
+                      {/* Grow Foods */}
+                      <div className="relative flex flex-col rounded-lg border bg-white/60 backdrop-blur-sm p-3 shadow-inner">
+                        <div className="flex items-center justify-between mb-2">
+                          <p className="font-medium text-sm tracking-wide text-gray-700 flex items-center gap-2">
+                            <span className="inline-block h-2.5 w-2.5 rounded-full bg-red-400" />
+                            Grow
+                            <span className="text-xs font-normal text-gray-400">{growItems.length}</span>
+                          </p>
+                        </div>
+                        {growItems.length === 0 ? (
+                          <p className="text-xs italic text-gray-400">None selected</p>
+                        ) : (
+                          <ul className="space-y-1 max-h-44 overflow-y-auto pr-1 custom-scroll">
+                            {growItems.map(item => (
+                              <li key={item.ing.ingredient_id} className="group flex items-center gap-2 rounded-md border border-transparent hover:border-gray-200 bg-white/70 px-2 py-1 text-xs transition-colors">
+                                <span className="flex-1 truncate font-medium text-gray-700" title={item.ing.name}>{item.ing.name}</span>
+                                <span className="text-gray-500 font-mono text-[11px] px-1 rounded bg-gray-100">{item.quantity}</span>
+                                <button
+                                  type="button"
+                                  onClick={() => handleIngredientRemove(item.ing.ingredient_id)}
+                                  className="opacity-60 hover:opacity-100 text-red-500 hover:text-red-600 transition-colors"
+                                  aria-label={`Remove ${item.ing.name}`}
+                                >
+                                  ×
+                                </button>
+                              </li>
+                            ))}
+                          </ul>
+                        )}
+                      </div>
+
+                      {/* Glow Vegetables */}
+                      <div className="relative flex flex-col rounded-lg border bg-white/60 backdrop-blur-sm p-3 shadow-inner">
+                        <div className="flex items-center justify-between mb-2">
+                          <p className="font-medium text-sm tracking-wide text-gray-700 flex items-center gap-2">
+                            <span className="inline-block h-2.5 w-2.5 rounded-full bg-green-500" />
+                            Vegetables
+                            <span className="text-xs font-normal text-gray-400">{glowVegetables.length}</span>
+                          </p>
+                        </div>
+                        {glowVegetables.length === 0 ? (
+                          <p className="text-xs italic text-gray-400">None selected</p>
+                        ) : (
+                          <ul className="space-y-1 max-h-44 overflow-y-auto pr-1 custom-scroll">
+                            {glowVegetables.map(item => (
+                              <li key={item.ing.ingredient_id} className="group flex items-center gap-2 rounded-md border border-transparent hover:border-gray-200 bg-white/70 px-2 py-1 text-xs transition-colors">
+                                <span className="flex-1 truncate font-medium text-gray-700" title={item.ing.name}>{item.ing.name}</span>
+                                <span className="text-gray-500 font-mono text-[11px] px-1 rounded bg-gray-100">{item.quantity}</span>
+                                <button
+                                  type="button"
+                                  onClick={() => handleIngredientRemove(item.ing.ingredient_id)}
+                                  className="opacity-60 hover:opacity-100 text-red-500 hover:text-red-600 transition-colors"
+                                  aria-label={`Remove ${item.ing.name}`}
+                                >
+                                  ×
+                                </button>
+                              </li>
+                            ))}
+                          </ul>
+                        )}
+                      </div>
+
+                      {/* Glow Fruits (In Meal) */}
+                      <div className="relative flex flex-col rounded-lg border bg-white/60 backdrop-blur-sm p-3 shadow-inner">
+                        <div className="flex items-center justify-between mb-2">
+                          <p className="font-medium text-sm tracking-wide text-gray-700 flex items-center gap-2">
+                            <span className="inline-block h-2.5 w-2.5 rounded-full bg-orange-400" />
+                            Fruits (In Meal)
+                            <span className="text-xs font-normal text-gray-400">{glowFruitsInMeal.length}</span>
+                          </p>
+                        </div>
+                        {glowFruitsInMeal.length === 0 ? (
+                          <p className="text-xs italic text-gray-400">None selected</p>
+                        ) : (
+                          <ul className="space-y-1 max-h-44 overflow-y-auto pr-1 custom-scroll">
+                            {glowFruitsInMeal.map(item => (
+                              <li key={item.ing.ingredient_id} className="group flex items-center gap-2 rounded-md border border-transparent hover:border-gray-200 bg-white/70 px-2 py-1 text-xs transition-colors">
+                                <span className="flex-1 truncate font-medium text-gray-700" title={item.ing.name}>{item.ing.name}</span>
+                                <span className="text-gray-500 font-mono text-[11px] px-1 rounded bg-gray-100">{item.quantity}</span>
+                                <button
+                                  type="button"
+                                  onClick={() => handleIngredientRemove(item.ing.ingredient_id)}
+                                  className="opacity-60 hover:opacity-100 text-red-500 hover:text-red-600 transition-colors"
+                                  aria-label={`Remove ${item.ing.name}`}
+                                >
+                                  ×
+                                </button>
+                              </li>
+                            ))}
+                          </ul>
+                        )}
+                      </div>
+
+                      {/* Glow Fruits (Eaten Separately) */}
+                      <div className="relative flex flex-col rounded-lg border bg-white/60 backdrop-blur-sm p-3 shadow-inner">
+                        <div className="flex items-center justify-between mb-2">
+                          <p className="font-medium text-sm tracking-wide text-gray-700 flex items-center gap-2">
+                            <span className="inline-block h-2.5 w-2.5 rounded-full bg-blue-400" />
+                            Fruits (Separate)
+                            <span className="text-xs font-normal text-gray-400">{glowFruitsSeparate.length}</span>
+                          </p>
+                        </div>
+                        {glowFruitsSeparate.length === 0 ? (
+                          <p className="text-xs italic text-gray-400">None selected</p>
+                        ) : (
+                          <ul className="space-y-1 max-h-44 overflow-y-auto pr-1 custom-scroll">
+                            {glowFruitsSeparate.map(item => (
+                              <li key={item.ing.ingredient_id} className="group flex items-center gap-2 rounded-md border border-transparent hover:border-gray-200 bg-white/70 px-2 py-1 text-xs transition-colors">
+                                <span className="flex-1 truncate font-medium text-gray-700" title={item.ing.name}>{item.ing.name}</span>
+                                <span className="text-gray-500 font-mono text-[11px] px-1 rounded bg-gray-100">{item.quantity}</span>
+                                <button
+                                  type="button"
+                                  onClick={() => handleIngredientRemove(item.ing.ingredient_id, true)}
+                                  className="opacity-60 hover:opacity-100 text-red-500 hover:text-red-600 transition-colors"
+                                  aria-label={`Remove ${item.ing.name}`}
+                                >
+                                  ×
+                                </button>
+                              </li>
+                            ))}
+                          </ul>
+                        )}
+                      </div>
                     </div>
                   </div>
                 );
@@ -1367,20 +1735,21 @@ export const CreateEditMealModal: React.FC<CreateEditMealModalProps> = ({
                   <div>
                     <p className="text-xs uppercase tracking-wide text-gray-500 font-medium mb-1">Ingredient Summary</p>
                     <div className="space-y-2">
-                      {(['Go','Grow','Glow'] as const).map(cat => {
-                        const group = selectedIngredients
+                      {/* Go Foods */}
+                      {(() => {
+                        const goItems = selectedIngredients
                           .map(sel => {
-                            const ing = allIngredients.find(i => i.ingredient_id === sel.ingredient_id && i.category === cat);
+                            const ing = allIngredients.find(i => i.ingredient_id === sel.ingredient_id && i.category === 'Go');
                             return ing ? { ing, quantity: sel.quantity } : null;
                           })
                           .filter(Boolean)
                           .filter(item => item!.quantity.trim()) as { ing: Ingredient; quantity: string }[];
-                        if (group.length === 0) return null;
+                        if (goItems.length === 0) return null;
                         return (
-                          <div key={cat} className="rounded-md border bg-white/60 backdrop-blur px-3 py-2">
-                            <p className="text-xs font-semibold tracking-wide mb-1 flex items-center gap-1">{cat} <span className="text-[10px] text-gray-400 font-medium">{group.length}</span></p>
+                          <div key="go" className="rounded-md border bg-white/60 backdrop-blur px-3 py-2">
+                            <p className="text-xs font-semibold tracking-wide mb-1 flex items-center gap-1">Go <span className="text-[10px] text-gray-400 font-medium">{goItems.length}</span></p>
                             <ul className="divide-y text-[12px]">
-                              {group.map(item => (
+                              {goItems.map(item => (
                                 <li key={item.ing.ingredient_id} className="py-1 flex justify-between gap-3">
                                   <span className="truncate" title={item.ing.name}>{item.ing.name}</span>
                                   <span className="text-gray-500 font-mono">{item.quantity}</span>
@@ -1389,7 +1758,107 @@ export const CreateEditMealModal: React.FC<CreateEditMealModalProps> = ({
                             </ul>
                           </div>
                         );
-                      })}
+                      })()}
+
+                      {/* Grow Foods */}
+                      {(() => {
+                        const growItems = selectedIngredients
+                          .map(sel => {
+                            const ing = allIngredients.find(i => i.ingredient_id === sel.ingredient_id && i.category === 'Grow');
+                            return ing ? { ing, quantity: sel.quantity } : null;
+                          })
+                          .filter(Boolean)
+                          .filter(item => item!.quantity.trim()) as { ing: Ingredient; quantity: string }[];
+                        if (growItems.length === 0) return null;
+                        return (
+                          <div key="grow" className="rounded-md border bg-white/60 backdrop-blur px-3 py-2">
+                            <p className="text-xs font-semibold tracking-wide mb-1 flex items-center gap-1">Grow <span className="text-[10px] text-gray-400 font-medium">{growItems.length}</span></p>
+                            <ul className="divide-y text-[12px]">
+                              {growItems.map(item => (
+                                <li key={item.ing.ingredient_id} className="py-1 flex justify-between gap-3">
+                                  <span className="truncate" title={item.ing.name}>{item.ing.name}</span>
+                                  <span className="text-gray-500 font-mono">{item.quantity}</span>
+                                </li>
+                              ))}
+                            </ul>
+                          </div>
+                        );
+                      })()}
+
+                      {/* Glow Vegetables */}
+                      {(() => {
+                        const glowVegetables = selectedIngredients
+                          .map(sel => {
+                            const ing = allIngredients.find(i => i.ingredient_id === sel.ingredient_id && i.category === 'Glow' && i.glow_subcategory === 'Vegetables');
+                            return ing ? { ing, quantity: sel.quantity } : null;
+                          })
+                          .filter(Boolean)
+                          .filter(item => item!.quantity.trim()) as { ing: Ingredient; quantity: string }[];
+                        if (glowVegetables.length === 0) return null;
+                        return (
+                          <div key="glow-veg" className="rounded-md border bg-white/60 backdrop-blur px-3 py-2">
+                            <p className="text-xs font-semibold tracking-wide mb-1 flex items-center gap-1">Vegetables <span className="text-[10px] text-gray-400 font-medium">{glowVegetables.length}</span></p>
+                            <ul className="divide-y text-[12px]">
+                              {glowVegetables.map(item => (
+                                <li key={item.ing.ingredient_id} className="py-1 flex justify-between gap-3">
+                                  <span className="truncate" title={item.ing.name}>{item.ing.name}</span>
+                                  <span className="text-gray-500 font-mono">{item.quantity}</span>
+                                </li>
+                              ))}
+                            </ul>
+                          </div>
+                        );
+                      })()}
+
+                      {/* Glow Fruits (In Meal) */}
+                      {(() => {
+                        const glowFruitsInMeal = selectedIngredients
+                          .map(sel => {
+                            const ing = allIngredients.find(i => i.ingredient_id === sel.ingredient_id && i.category === 'Glow' && i.glow_subcategory === 'Fruits');
+                            return ing ? { ing, quantity: sel.quantity } : null;
+                          })
+                          .filter(Boolean)
+                          .filter(item => item!.quantity.trim()) as { ing: Ingredient; quantity: string }[];
+                        if (glowFruitsInMeal.length === 0) return null;
+                        return (
+                          <div key="glow-fruits" className="rounded-md border bg-white/60 backdrop-blur px-3 py-2">
+                            <p className="text-xs font-semibold tracking-wide mb-1 flex items-center gap-1">Fruits (In Meal) <span className="text-[10px] text-gray-400 font-medium">{glowFruitsInMeal.length}</span></p>
+                            <ul className="divide-y text-[12px]">
+                              {glowFruitsInMeal.map(item => (
+                                <li key={item.ing.ingredient_id} className="py-1 flex justify-between gap-3">
+                                  <span className="truncate" title={item.ing.name}>{item.ing.name}</span>
+                                  <span className="text-gray-500 font-mono">{item.quantity}</span>
+                                </li>
+                              ))}
+                            </ul>
+                          </div>
+                        );
+                      })()}
+
+                      {/* Glow Fruits (Eaten Separately) */}
+                      {(() => {
+                        const glowFruitsSeparate = fruitsEatenSeparately
+                          .map(sel => {
+                            const ing = allIngredients.find(i => i.ingredient_id === sel.ingredient_id && i.category === 'Glow' && i.glow_subcategory === 'Fruits');
+                            return ing ? { ing, quantity: sel.quantity } : null;
+                          })
+                          .filter(Boolean)
+                          .filter(item => item!.quantity.trim()) as { ing: Ingredient; quantity: string }[];
+                        if (glowFruitsSeparate.length === 0) return null;
+                        return (
+                          <div key="glow-fruits-sep" className="rounded-md border bg-blue-50/60 backdrop-blur px-3 py-2">
+                            <p className="text-xs font-semibold tracking-wide mb-1 flex items-center gap-1 text-blue-700">Fruits (Eaten Separately) <span className="text-[10px] text-blue-400 font-medium">{glowFruitsSeparate.length}</span></p>
+                            <ul className="divide-y text-[12px]">
+                              {glowFruitsSeparate.map(item => (
+                                <li key={item.ing.ingredient_id} className="py-1 flex justify-between gap-3">
+                                  <span className="truncate text-blue-700" title={item.ing.name}>{item.ing.name}</span>
+                                  <span className="text-blue-500 font-mono">{item.quantity}</span>
+                                </li>
+                              ))}
+                            </ul>
+                          </div>
+                        );
+                      })()}
                     </div>
                   </div>
                   
@@ -1471,7 +1940,9 @@ export const CreateEditMealModal: React.FC<CreateEditMealModalProps> = ({
               <div className="rounded-lg border bg-gray-50 p-4 flex flex-wrap gap-4 text-xs">
                 <span className={`px-2 py-1 rounded-full font-medium ${categoryCounts.go ? 'bg-yellow-100 text-yellow-800' : 'bg-gray-200 text-gray-500'}`}>Go {categoryCounts.go}</span>
                 <span className={`px-2 py-1 rounded-full font-medium ${categoryCounts.grow ? 'bg-red-100 text-red-800' : 'bg-gray-200 text-gray-500'}`}>Grow {categoryCounts.grow}</span>
-                <span className={`px-2 py-1 rounded-full font-medium ${categoryCounts.glow ? 'bg-green-100 text-green-800' : 'bg-gray-200 text-gray-500'}`}>Glow {categoryCounts.glow} (Veg {categoryCounts.glowVegetables} / Fruit {categoryCounts.glowFruits})</span>
+                <span className={`px-2 py-1 rounded-full font-medium ${categoryCounts.glowVegetables ? 'bg-green-100 text-green-800' : 'bg-gray-200 text-gray-500'}`}>Vegetables {categoryCounts.glowVegetables}</span>
+                <span className={`px-2 py-1 rounded-full font-medium ${categoryCounts.glowFruits ? 'bg-orange-100 text-orange-800' : 'bg-gray-200 text-gray-500'}`}>Fruits (In Meal) {categoryCounts.glowFruits}</span>
+                <span className={`px-2 py-1 rounded-full font-medium ${categoryCounts.glowFruitsSeparate ? 'bg-blue-100 text-blue-800' : 'bg-gray-200 text-gray-500'}`}>Fruits (Separate) {categoryCounts.glowFruitsSeparate}</span>
                 <span className={`px-2 py-1 rounded-full font-medium ${allCategoriesPresent ? (glowSubcategoriesPresent ? 'bg-green-600 text-white' : 'bg-amber-500 text-white') : 'bg-gray-400 text-white'}`}>
                   {allCategoriesPresent ? (glowSubcategoriesPresent ? 'Balanced' : 'Add Fruit or Veg') : 'Incomplete'}
                 </span>
@@ -1539,6 +2010,61 @@ export const CreateEditMealModal: React.FC<CreateEditMealModalProps> = ({
           </div>
         </div>
       )}
+
+      {/* Disable Dietary Tag Confirmation Dialog */}
+      <AlertDialog open={isDisableOpen} onOpenChange={setIsDisableOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Disable dietary tag</AlertDialogTitle>
+            <AlertDialogDescription>
+              {tagToDisable ? (
+                <>Are you sure you want to disable the tag <span className="font-medium">{tagToDisable.tag_name}</span>? It will be hidden from selection but remain historically associated with meals.</>
+              ) : 'Are you sure?'}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={isDisabling} onClick={() => setTagToDisable(null)}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              disabled={isDisabling}
+              onClick={(e) => { e.preventDefault(); confirmDisableTag(); }}
+              className="bg-red-600 hover:bg-red-700"
+            >
+              {isDisabling ? 'Disabling...' : 'Disable'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Add Dietary Tag Dialog */}
+      <AlertDialog open={isAddOpen} onOpenChange={setIsAddOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Add Dietary Tag</AlertDialogTitle>
+            <AlertDialogDescription>
+              Create a new dietary tag to classify meals (e.g., "Low Sodium", "Keto").
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <div className="space-y-2 mt-2">
+            <Input
+              autoFocus
+              value={newTagName}
+              onChange={(e) => setNewTagName(e.target.value)}
+              placeholder="Enter tag name"
+              onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); handleAddDietaryTag(); } }}
+            />
+            {tagError && <p className="text-xs text-red-600">{tagError}</p>}
+          </div>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={isCreatingTag} onClick={() => { setNewTagName(''); setTagError(''); }}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              disabled={isCreatingTag}
+              onClick={(e) => { e.preventDefault(); handleAddDietaryTag(); }}
+            >
+              {isCreatingTag ? 'Adding...' : 'Add Tag'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 };

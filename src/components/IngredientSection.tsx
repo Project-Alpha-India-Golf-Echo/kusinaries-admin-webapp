@@ -10,9 +10,10 @@ import { QuantitySelector, validateQuantity } from './ui/quantity-selector';
 interface IngredientSectionProps {
   category: IngredientCategory;
   selectedIngredients: { ingredient_id: number; quantity: string }[];
-  onIngredientSelect: (ingredient: Ingredient) => void;
-  onQuantityChange: (ingredientId: number, quantity: string) => void;
+  onIngredientSelect: (ingredient: Ingredient, isEatenSeparately?: boolean) => void;
+  onQuantityChange: (ingredientId: number, quantity: string, isEatenSeparately?: boolean) => void;
   userRole?: string; // Add userRole prop to filter out cook-created ingredients for admin users
+  fruitsEatenSeparately?: { ingredient_id: number; quantity: string }[]; // Array of fruits that are eaten separately with quantities
 }
 
 const getCategoryInfo = (category: IngredientCategory) => {
@@ -55,10 +56,12 @@ export const IngredientSection: React.FC<IngredientSectionProps> = ({
   selectedIngredients,
   onIngredientSelect,
   onQuantityChange,
-  userRole
+  userRole,
+  fruitsEatenSeparately = []
 }) => {
   const [ingredients, setIngredients] = useState<Ingredient[]>([]);
   const [glowTab, setGlowTab] = useState<'Vegetables' | 'Fruits'>('Vegetables');
+  const [fruitTab, setFruitTab] = useState<'In Meal' | 'Eaten Separately'>('In Meal');
   const [searchTerm, setSearchTerm] = useState('');
   const [isLoading, setIsLoading] = useState(true);
   // Track ingredients currently being added (pending confirmation) with local quantity drafts
@@ -100,10 +103,39 @@ export const IngredientSection: React.FC<IngredientSectionProps> = ({
   }, []);
 
   const isIngredientSelected = (ingredientId: number) => {
-    return selectedIngredients.some(item => item.ingredient_id === ingredientId);
+    const isInSelectedIngredients = selectedIngredients.some(item => item.ingredient_id === ingredientId);
+    
+    // For fruits, we need to check the category context
+    if (category === 'Glow' && glowTab === 'Fruits') {
+      const isInEatenSeparately = fruitsEatenSeparately.some(item => item.ingredient_id === ingredientId);
+      
+      if (fruitTab === 'Eaten Separately') {
+        // Only show as selected if it's in the eaten separately list
+        return isInEatenSeparately;
+      } else {
+        // Show as selected if it's in selectedIngredients but NOT in eaten separately
+        return isInSelectedIngredients;
+      }
+    }
+    
+    // For non-fruits, use the normal logic
+    return isInSelectedIngredients;
   };
 
   const getIngredientQuantity = (ingredientId: number) => {
+    // For fruits, check if we should show the quantity based on the current tab
+    if (category === 'Glow' && glowTab === 'Fruits') {
+      if (fruitTab === 'Eaten Separately') {
+        // Show quantity from eaten separately list
+        const separateItem = fruitsEatenSeparately.find(item => item.ingredient_id === ingredientId);
+        return separateItem?.quantity || '';
+      } else {
+        // Show quantity from regular selected ingredients
+        const selected = selectedIngredients.find(item => item.ingredient_id === ingredientId);
+        return selected?.quantity || '';
+      }
+    }
+    
     const selected = selectedIngredients.find(item => item.ingredient_id === ingredientId);
     return selected?.quantity || '';
   };
@@ -127,10 +159,11 @@ export const IngredientSection: React.FC<IngredientSectionProps> = ({
   const confirmAdd = (ingredient: Ingredient) => {
     const draft = pendingAdds[ingredient.ingredient_id];
     if (!draft || !validateQuantity(draft.trim())) return;
+    const isEatenSeparately = category === 'Glow' && glowTab === 'Fruits' && fruitTab === 'Eaten Separately';
     if (!isIngredientSelected(ingredient.ingredient_id)) {
-      onIngredientSelect(ingredient);
+      onIngredientSelect(ingredient, isEatenSeparately);
     }
-    onQuantityChange(ingredient.ingredient_id, draft.trim());
+    onQuantityChange(ingredient.ingredient_id, draft.trim(), isEatenSeparately);
     cancelPendingAdd(ingredient.ingredient_id);
   };
 
@@ -142,6 +175,13 @@ export const IngredientSection: React.FC<IngredientSectionProps> = ({
             {categoryInfo.title}
           </h3>
           <p className="text-sm text-gray-600">{categoryInfo.description}</p>
+          {category === 'Glow' && glowTab === 'Fruits' && (
+            <div className="mt-2 p-2 bg-purple-50 border border-purple-200 rounded-lg">
+              <p className="text-xs text-purple-800">
+                <strong>Note:</strong> Choose whether fruits are part of the meal preparation or eaten separately as dessert/snack.
+              </p>
+            </div>
+          )}
         </div>
         <Button
           type="button"
@@ -158,25 +198,43 @@ export const IngredientSection: React.FC<IngredientSectionProps> = ({
         <div className="relative">
           <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
           <Input
-            placeholder={`Search ${category} ingredients...`}
+            placeholder={`Search ${category === 'Glow' && glowTab === 'Fruits' ? `${glowTab} (${fruitTab})` : category === 'Glow' ? `${category} (${glowTab})` : category} ingredients...`}
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
             className="pl-10"
           />
         </div>
         {category === 'Glow' && (
-          <div className="mt-3 flex gap-2">
-            {(['Vegetables', 'Fruits'] as const).map(tab => (
-              <Button
-                key={tab}
-                type="button"
-                size="sm"
-                variant={glowTab === tab ? 'default' : 'outline'}
-                onClick={() => setGlowTab(tab)}
-              >
-                {tab}
-              </Button>
-            ))}
+          <div className="mt-3 space-y-2">
+            <div className="flex gap-2">
+              {(['Vegetables', 'Fruits'] as const).map(tab => (
+                <Button
+                  key={tab}
+                  type="button"
+                  size="sm"
+                  variant={glowTab === tab ? 'default' : 'outline'}
+                  onClick={() => setGlowTab(tab)}
+                >
+                  {tab}
+                </Button>
+              ))}
+            </div>
+            {glowTab === 'Fruits' && (
+              <div className="flex gap-2 ml-4">
+                {(['In Meal', 'Eaten Separately'] as const).map(subTab => (
+                  <Button
+                    key={subTab}
+                    type="button"
+                    size="sm"
+                    variant={fruitTab === subTab ? 'default' : 'outline'}
+                    onClick={() => setFruitTab(subTab)}
+                    className={`text-xs ${fruitTab === subTab ? 'bg-purple-600 hover:bg-purple-700' : 'border-purple-200 text-purple-700 hover:bg-purple-50'}`}
+                  >
+                    🍓 {subTab}
+                  </Button>
+                ))}
+              </div>
+            )}
           </div>
         )}
       </div>
@@ -203,16 +261,17 @@ export const IngredientSection: React.FC<IngredientSectionProps> = ({
       ) : (
         <div className="space-y-2 max-h-64 overflow-y-auto">
           {filteredIngredients.map((ingredient) => {
-            const selected = selectedIngredients.find(si => si.ingredient_id === ingredient.ingredient_id);
-            const hasQuantity = selected && selected.quantity.trim();
-            const pending = pendingAdds[ingredient.ingredient_id] !== undefined && !hasQuantity;
+            const isSelected = isIngredientSelected(ingredient.ingredient_id);
+            const currentQuantity = getIngredientQuantity(ingredient.ingredient_id);
+            const hasQuantity = isSelected && currentQuantity.trim();
+            const pending = pendingAdds[ingredient.ingredient_id] !== undefined && !isSelected;
             const pendingQty = pendingAdds[ingredient.ingredient_id] || '';
             return (
               <div
                 key={ingredient.ingredient_id}
                 className={`relative flex flex-col p-4 bg-white rounded-xl border-2 transition-all duration-200 hover:shadow-md ${
                   pending ? 'border-amber-300 bg-gradient-to-r from-amber-50 to-orange-50 shadow-lg' : 
-                  isIngredientSelected(ingredient.ingredient_id) ? (hasQuantity ? 'border-blue-400 bg-gradient-to-r from-blue-50 to-indigo-50 shadow-sm' : 'border-amber-300 bg-amber-50') : 
+                  isSelected ? (hasQuantity ? 'border-blue-400 bg-gradient-to-r from-blue-50 to-indigo-50 shadow-sm' : 'border-amber-300 bg-amber-50') : 
                   'border-gray-200 hover:border-gray-300 hover:bg-gray-50'
                 }`}
               >
@@ -230,17 +289,37 @@ export const IngredientSection: React.FC<IngredientSectionProps> = ({
                     )}
                   </div>
                   <div className="flex-1 min-w-0">
-                    <h4 className="font-semibold text-sm text-gray-900 mb-0.5" title={ingredient.name}>{ingredient.name}</h4>
+                    <div className="flex items-center gap-2 mb-0.5">
+                      <h4 className="font-semibold text-sm text-gray-900" title={ingredient.name}>{ingredient.name}</h4>
+                      {category === 'Glow' && glowTab === 'Fruits' && isSelected && (
+                        <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-bold ${
+                          fruitsEatenSeparately.some(item => item.ingredient_id === ingredient.ingredient_id) 
+                            ? 'bg-purple-100 text-purple-700' 
+                            : 'bg-green-100 text-green-700'
+                        }`}>
+                          {fruitsEatenSeparately.some(item => item.ingredient_id === ingredient.ingredient_id) ? 'SEPARATE' : 'IN MEAL'}
+                        </span>
+                      )}
+                    </div>
                     <p className="text-xs text-gray-600 font-medium">₱{ingredient.price_per_kilo.toFixed(2)}/kg</p>
                   </div>
                 </div>
 
                 {/* Status messages */}
                 {pending && (
-                  <p className="text-xs text-amber-700 mb-3 font-medium animate-pulse">Enter quantity & confirm</p>
+                  <div className="mb-3">
+                    <p className="text-xs text-amber-700 font-medium animate-pulse">Enter quantity & confirm</p>
+                    {category === 'Glow' && glowTab === 'Fruits' && (
+                      <p className="text-[10px] text-gray-600 mt-1">
+                        Adding to: <span className="font-semibold text-purple-700">
+                          {fruitTab === 'Eaten Separately' ? 'Fruits (eaten separately)' : 'Fruits (in meal)'}
+                        </span>
+                      </p>
+                    )}
+                  </div>
                 )}
-                {selected && hasQuantity && (
-                  <p className="text-[11px] text-blue-700 mb-3 font-medium">✓ Added: {selected.quantity}</p>
+                {isSelected && hasQuantity && (
+                  <p className="text-[11px] text-blue-700 mb-3 font-medium">✓ Added: {currentQuantity}</p>
                 )}
 
                 {/* Bottom section: Actions */}
@@ -276,11 +355,12 @@ export const IngredientSection: React.FC<IngredientSectionProps> = ({
                       <XIcon className="w-4 h-4" />
                     </Button>
                   </div>
-                ) : selected ? (
+                ) : isSelected ? (
                   <div className="flex items-center space-x-3">
                     <QuantitySelector
-                      value={getIngredientQuantity(ingredient.ingredient_id)}
-                      onChange={(value) => onQuantityChange(ingredient.ingredient_id, value)}
+                      key={`${ingredient.ingredient_id}-${fruitTab}`}
+                      value={currentQuantity}
+                      onChange={(value) => onQuantityChange(ingredient.ingredient_id, value, category === 'Glow' && glowTab === 'Fruits' && fruitTab === 'Eaten Separately')}
                       className="flex-1"
                     />
                     <span className="inline-flex items-center gap-1 text-[10px] px-2.5 py-1.5 rounded-full bg-blue-600 text-white font-bold uppercase tracking-wide shadow-sm whitespace-nowrap">
@@ -289,14 +369,23 @@ export const IngredientSection: React.FC<IngredientSectionProps> = ({
                     </span>
                   </div>
                 ) : (
-                  <Button
-                    type="button"
-                    size="sm"
-                    onClick={() => startPendingAdd(ingredient.ingredient_id)}
-                    className={`${categoryInfo.buttonColor} text-white shadow-sm hover:shadow-md transition-shadow px-4 py-2 w-full`}
-                  >
-                    Add
-                  </Button>
+                  <div className="space-y-1">
+                    {category === 'Glow' && glowTab === 'Fruits' && (
+                      <p className="text-[10px] text-center text-gray-600">
+                        Will add to: <span className="font-semibold text-purple-700">
+                          {fruitTab === 'Eaten Separately' ? 'Fruits (eaten separately)' : 'Fruits (in meal)'}
+                        </span>
+                      </p>
+                    )}
+                    <Button
+                      type="button"
+                      size="sm"
+                      onClick={() => startPendingAdd(ingredient.ingredient_id)}
+                      className={`${categoryInfo.buttonColor} text-white shadow-sm hover:shadow-md transition-shadow px-4 py-2 w-full`}
+                    >
+                      Add
+                    </Button>
+                  </div>
                 )}
               </div>
             );

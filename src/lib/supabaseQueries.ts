@@ -439,13 +439,13 @@ export const fetchUsers = async (params: {
 // ============================================
 
 import type {
-  CondimentUnitType,
-  CreateMealData,
-  DietaryTag,
-  Ingredient,
-  IngredientCategory,
-  IngredientUnitType,
-  Meal
+    CondimentUnitType,
+    CreateMealData,
+    DietaryTag,
+    Ingredient,
+    IngredientCategory,
+    IngredientUnitType,
+    Meal
 } from '../types'; // ===== INGREDIENT QUERIES =====
 
 // Get all ingredients (only active/non-archived by default) (cached)
@@ -1330,6 +1330,10 @@ export const createDietaryTag = async (tag_name: string): Promise<{ success: boo
       }
       return { success: false, error: error.message };
     }
+
+    // Invalidate relevant caches
+    invalidateCache('dietaryTagCreated');
+
     return { success: true, data: data as DietaryTag };
   } catch (error) {
     console.error('Error in createDietaryTag:', error);
@@ -1347,6 +1351,10 @@ export const disableDietaryTag = async (tag_id: number): Promise<{ success: bool
     if (error) {
       return { success: false, error: error.message };
     }
+
+    // Invalidate relevant caches
+    invalidateCache('dietaryTagDisabled');
+
     return { success: true };
   } catch (error) {
     console.error('Error in disableDietaryTag:', error);

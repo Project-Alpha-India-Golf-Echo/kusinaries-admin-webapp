@@ -39,25 +39,35 @@ export const QuantitySelector: React.FC<QuantitySelectorProps> = ({
   className = "",
   disabled = false
 }) => {
+  const [lastKnownUnit, setLastKnownUnit] = React.useState<string>('g');
   // Parse the current value to extract number and unit
   const parseQuantity = (quantityString: string) => {
     if (!quantityString.trim()) return { amount: '', unit: '' };
     
-    const match = quantityString.trim().match(/^(\d*\.?\d+)\s*(.*)$/);
+    // Improved regex to handle various number formats
+    const match = quantityString.trim().match(/^(\d+(?:\.\d+)?)\s*(.*)$/);
     if (match) {
-      return { amount: match[1], unit: match[2].trim() || 'g' };
+      const extractedUnit = match[2].trim();
+      return { amount: match[1], unit: extractedUnit || 'g' };
     }
     return { amount: '', unit: 'g' };
   };
 
   const { amount, unit } = parseQuantity(value);
 
+  // Update lastKnownUnit when we have a valid unit
+  React.useEffect(() => {
+    if (unit && unit !== 'g') {
+      setLastKnownUnit(unit);
+    }
+  }, [unit]);
+
   const handleAmountChange = (newAmount: string) => {
     // Only allow numbers and decimal points
     if (newAmount === '' || /^\d*\.?\d*$/.test(newAmount)) {
-  // If no unit present yet, default to grams ('g') so we always store amount with a unit
-  const effectiveUnit = unit || 'g';
-  const newValue = newAmount ? `${newAmount}${effectiveUnit}` : '';
+      // Use the current unit, or fall back to last known unit, or default to 'g'
+      const effectiveUnit = unit || lastKnownUnit || 'g';
+      const newValue = newAmount ? `${newAmount}${effectiveUnit}` : '';
       onChange(newValue);
     }
   };
