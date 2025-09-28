@@ -1,8 +1,8 @@
 import React from 'react';
+import type { Meal } from '../types';
 import { MealCard } from './MealCard';
 import { MealCardList } from './MealCardList';
 import type { ViewMode } from './ViewModeSelector';
-import type { Meal } from '../types';
 
 interface MealGridProps {
   meals: Meal[];

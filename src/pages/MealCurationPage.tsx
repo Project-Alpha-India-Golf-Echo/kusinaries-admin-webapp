@@ -2,11 +2,11 @@
 import { Archive, Loader2, Plus, Utensils } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import { toast } from 'sonner';
-import { MealGrid } from '../components/MealGrid';
 import { MealFiltersComponent } from '../components/MealFiltersComponent';
-import { ViewModeSelector } from '../components/ViewModeSelector';
+import { MealGrid } from '../components/MealGrid';
 import { Button } from '../components/ui/button';
 import type { ViewMode } from '../components/ViewModeSelector';
+import { ViewModeSelector } from '../components/ViewModeSelector';
 import { useAuth } from '../contexts/AuthContext';
 import { useModal } from '../contexts/ModalContext';
 import { useDocumentTitle } from '../hooks/useDocumentTitle';

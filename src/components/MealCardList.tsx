@@ -1,8 +1,8 @@
 import { Calendar, Clock, DollarSign, Tag } from 'lucide-react';
 import React from 'react';
+import type { Meal } from '../types';
 import { Badge } from './ui/badge';
 import { Button } from './ui/button';
-import type { Meal } from '../types';
 
 interface MealCardListProps {
   meal: Meal;

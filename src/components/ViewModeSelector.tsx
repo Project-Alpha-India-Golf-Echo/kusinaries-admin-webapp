@@ -1,4 +1,4 @@
-import { Grid3X3, List, LayoutGrid, Grid2X2 } from 'lucide-react';
+import { Grid2X2, Grid3X3, LayoutGrid, List } from 'lucide-react';
 import React from 'react';
 import { Button } from './ui/button';
 
