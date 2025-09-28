@@ -1207,6 +1207,7 @@ export const CreateEditMealModal: React.FC<CreateEditMealModalProps> = ({
                   selectedIngredients={selectedIngredients}
                   onIngredientSelect={handleIngredientSelect}
                   onQuantityChange={handleQuantityChange}
+                  onIngredientRemove={handleIngredientRemove}
                   userRole={userRole || undefined}
                   fruitsEatenSeparately={fruitsEatenSeparately}
                 />
@@ -1215,6 +1216,7 @@ export const CreateEditMealModal: React.FC<CreateEditMealModalProps> = ({
                   selectedIngredients={selectedIngredients}
                   onIngredientSelect={handleIngredientSelect}
                   onQuantityChange={handleQuantityChange}
+                  onIngredientRemove={handleIngredientRemove}
                   userRole={userRole || undefined}
                   fruitsEatenSeparately={fruitsEatenSeparately}
                 />
@@ -1223,6 +1225,7 @@ export const CreateEditMealModal: React.FC<CreateEditMealModalProps> = ({
                   selectedIngredients={selectedIngredients}
                   onIngredientSelect={handleIngredientSelect}
                   onQuantityChange={handleQuantityChange}
+                  onIngredientRemove={handleIngredientRemove}
                   userRole={userRole || undefined}
                   fruitsEatenSeparately={fruitsEatenSeparately}
                 />

@@ -1,6 +1,5 @@
 #!/usr/bin/env node
 /**
- * Seed AI-generated meals into the database with clear separation (ai_generated + ai_batch_id).
  * Safe to delete later using the same batch id.
  *
  * Usage:
@@ -316,8 +315,6 @@ async function main() {
       recipe: meal.recipe,
       image_url: null,
       is_disabled: false,
-      ai_generated: true,
-      ai_batch_id: batchId,
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString()
     };

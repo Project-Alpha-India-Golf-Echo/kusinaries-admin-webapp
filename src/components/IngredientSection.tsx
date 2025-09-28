@@ -1,4 +1,4 @@
-import { Check, Package, Plus, Search, X as XIcon } from 'lucide-react';
+import { Check, Package, Plus, Search, Trash2, X as XIcon } from 'lucide-react';
 import React, { useEffect, useState } from 'react';
 import { useModal } from '../contexts/ModalContext';
 import { getIngredientsByCategory, getIngredientsByCategoryForAdmin } from '../lib/supabaseQueries';
@@ -12,6 +12,7 @@ interface IngredientSectionProps {
   selectedIngredients: { ingredient_id: number; quantity: string }[];
   onIngredientSelect: (ingredient: Ingredient, isEatenSeparately?: boolean) => void;
   onQuantityChange: (ingredientId: number, quantity: string, isEatenSeparately?: boolean) => void;
+  onIngredientRemove: (ingredientId: number, isEatenSeparately?: boolean) => void;
   userRole?: string; // Add userRole prop to filter out cook-created ingredients for admin users
   fruitsEatenSeparately?: { ingredient_id: number; quantity: string }[]; // Array of fruits that are eaten separately with quantities
 }
@@ -56,6 +57,7 @@ export const IngredientSection: React.FC<IngredientSectionProps> = ({
   selectedIngredients,
   onIngredientSelect,
   onQuantityChange,
+  onIngredientRemove,
   userRole,
   fruitsEatenSeparately = []
 }) => {
@@ -356,7 +358,7 @@ export const IngredientSection: React.FC<IngredientSectionProps> = ({
                     </Button>
                   </div>
                 ) : isSelected ? (
-                  <div className="flex items-center space-x-3">
+                  <div className="flex items-center space-x-2">
                     <QuantitySelector
                       key={`${ingredient.ingredient_id}-${fruitTab}`}
                       value={currentQuantity}
@@ -367,6 +369,16 @@ export const IngredientSection: React.FC<IngredientSectionProps> = ({
                       <Check className="w-3 h-3" />
                       Added
                     </span>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      onClick={() => onIngredientRemove(ingredient.ingredient_id, category === 'Glow' && glowTab === 'Fruits' && fruitTab === 'Eaten Separately')}
+                      className="text-red-600 hover:text-red-700 hover:bg-red-50 border-red-200 hover:border-red-300 shadow-sm"
+                      title="Remove ingredient"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </Button>
                   </div>
                 ) : (
                   <div className="space-y-1">

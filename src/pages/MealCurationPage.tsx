@@ -2,9 +2,11 @@
 import { Archive, Loader2, Plus, Utensils } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import { toast } from 'sonner';
-import { MealCard } from '../components/MealCard';
+import { MealGrid } from '../components/MealGrid';
 import { MealFiltersComponent } from '../components/MealFiltersComponent';
+import { ViewModeSelector } from '../components/ViewModeSelector';
 import { Button } from '../components/ui/button';
+import type { ViewMode } from '../components/ViewModeSelector';
 import { useAuth } from '../contexts/AuthContext';
 import { useModal } from '../contexts/ModalContext';
 import { useDocumentTitle } from '../hooks/useDocumentTitle';
@@ -61,6 +63,7 @@ export const MealCurationPage = () => {
   const [allArchivedMeals, setAllArchivedMeals] = useState<Meal[]>([]);
   const [dietaryTags, setDietaryTags] = useState<DietaryTag[]>([]);
   const [filters, setFilters] = useState<MealFilters>({});
+  const [viewMode, setViewMode] = useState<ViewMode>('grid');
   const [isLoading, setIsLoading] = useState(true);
   const [showArchived, setShowArchived] = useState(false);
   const [error, setError] = useState('');
@@ -346,6 +349,16 @@ export const MealCurationPage = () => {
           isVerifiedCook={isVerifiedCook}
         />
 
+        {/* View Mode Selector */}
+        {filteredMeals.length > 0 && (
+          <div className="flex justify-end mb-6">
+            <ViewModeSelector
+              currentMode={viewMode}
+              onModeChange={setViewMode}
+            />
+          </div>
+        )}
+
         {/* Content */}
         {isLoading ? (
           <div className="bg-white rounded-xl border border-gray-200 shadow-sm">
@@ -390,19 +403,15 @@ export const MealCurationPage = () => {
             </div>
           </div>
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-            {filteredMeals.map((meal: Meal) => (
-              <MealCard
-                key={meal.meal_id}
-                meal={meal}
-                onEdit={handleEditMeal}
-                onArchive={handleArchiveMeal}
-                onRestore={showArchived ? handleRestoreMeal : undefined}
-                onDuplicate={!showArchived ? handleDuplicateMeal : undefined}
-                isArchived={showArchived}
-              />
-            ))}
-          </div>
+          <MealGrid
+            meals={filteredMeals}
+            viewMode={viewMode}
+            onEdit={handleEditMeal}
+            onArchive={handleArchiveMeal}
+            onRestore={showArchived ? handleRestoreMeal : undefined}
+            onDuplicate={!showArchived ? handleDuplicateMeal : undefined}
+            isArchived={showArchived}
+          />
         )}
 
         {/* Meal Stats Footer */}

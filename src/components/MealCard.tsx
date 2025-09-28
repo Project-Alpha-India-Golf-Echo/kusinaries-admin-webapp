@@ -22,6 +22,7 @@ interface MealCardProps {
   onRestore?: (mealId: number) => void;
   onDuplicate?: (meal: Meal) => void;
   isArchived?: boolean;
+  size?: 'compact' | 'medium' | 'default';
 }
 
 const getCategoryColor = (category: string) => {
@@ -72,7 +73,8 @@ export const MealCard: React.FC<MealCardProps> = ({
   onArchive,
   onRestore,
   onDuplicate,
-  isArchived = false
+  isArchived = false,
+  size = 'default'
 }) => {
   const formatDate = (dateString: string) => {
     return new Date(dateString).toLocaleDateString('en-US', {
@@ -193,12 +195,49 @@ export const MealCard: React.FC<MealCardProps> = ({
   const ingredientCounts = getIngredientCounts();
   const estimatedPrice = meal.estimated_price || calculateEstimatedPrice();
 
+  const getSizeClasses = () => {
+    switch (size) {
+      case 'compact':
+        return {
+          card: 'bg-white rounded-lg border shadow-sm hover:shadow-md transition-all duration-200 overflow-hidden',
+          image: 'h-32 bg-gray-100 relative overflow-hidden',
+          icon: 'w-8 h-8',
+          padding: 'p-3',
+          title: 'text-sm font-semibold',
+          text: 'text-xs',
+          button: 'text-xs px-2 py-1'
+        };
+      case 'medium':
+        return {
+          card: 'bg-white rounded-lg border shadow-sm hover:shadow-md transition-all duration-200 overflow-hidden',
+          image: 'h-40 bg-gray-100 relative overflow-hidden',
+          icon: 'w-10 h-10',
+          padding: 'p-4',
+          title: 'text-base font-semibold',
+          text: 'text-sm',
+          button: 'text-sm px-3 py-1.5'
+        };
+      default:
+        return {
+          card: 'bg-white rounded-xl border shadow-sm hover:shadow-md transition-all duration-200 overflow-hidden',
+          image: 'h-48 bg-gray-100 relative overflow-hidden',
+          icon: 'w-12 h-12',
+          padding: 'p-6',
+          title: 'text-lg font-semibold',
+          text: 'text-sm',
+          button: 'text-sm px-4 py-2'
+        };
+    }
+  };
+
+  const sizeClasses = getSizeClasses();
+
   return (
-    <div className={`bg-white rounded-xl border shadow-sm hover:shadow-md transition-all duration-200 overflow-hidden ${
+    <div className={`${sizeClasses.card} ${
       isArchived ? 'border-gray-200 opacity-75' : 'border-gray-200'
     }`}>
       {/* Image */}
-      <div className="h-48 bg-gray-100 relative overflow-hidden">
+      <div className={`${sizeClasses.image}`}>
         {(meal as any).signed_image_url || meal.image_url ? (
           <img
             src={(meal as any).signed_image_url || meal.image_url}
@@ -207,7 +246,7 @@ export const MealCard: React.FC<MealCardProps> = ({
           />
         ) : (
           <div className="w-full h-full flex items-center justify-center text-gray-400">
-            <Utensils className="w-12 h-12" />
+            <Utensils className={sizeClasses.icon} />
           </div>
         )}
         
@@ -236,13 +275,13 @@ export const MealCard: React.FC<MealCardProps> = ({
       </div>
 
       {/* Content */}
-      <div className="p-4">
-        <h3 className="font-semibold text-gray-900 text-lg mb-2 line-clamp-2">
+      <div className={sizeClasses.padding}>
+        <h3 className={`${sizeClasses.title} text-gray-900 mb-2 line-clamp-2`}>
           {meal.name}
         </h3>
 
         {/* Pinggang Pinoy Summary */}
-        <div className="flex items-center space-x-4 mb-3 text-sm">
+        <div className={`flex items-center space-x-4 mb-3 ${sizeClasses.text}`}>
           <div className="flex items-center text-yellow-600">
             <div className="w-3 h-3 bg-yellow-400 rounded-full mr-1"></div>
             Go: {ingredientCounts.go}
@@ -258,7 +297,7 @@ export const MealCard: React.FC<MealCardProps> = ({
         </div>
 
         {/* Price and Date */}
-        <div className="flex items-center justify-between mb-3 text-sm text-gray-600">
+        <div className={`flex items-center justify-between mb-3 ${sizeClasses.text} text-gray-600`}>
           <div className="flex items-center">
             <span className="text-lg font-medium mr-1">₱</span>
             {estimatedPrice.toFixed(2)}
@@ -305,7 +344,7 @@ export const MealCard: React.FC<MealCardProps> = ({
 
         {/* Recipe Preview */}
         {meal.recipe && (
-          <p className="text-sm text-gray-600 mb-3 line-clamp-2">
+          <p className={`${sizeClasses.text} text-gray-600 mb-3 line-clamp-2`}>
             {meal.recipe}
           </p>
         )}
@@ -331,7 +370,7 @@ export const MealCard: React.FC<MealCardProps> = ({
                 <Button
                   size="sm"
                   variant="ghost"
-                  className="justify-start"
+                  className={`justify-start ${sizeClasses.button}`}
                   onClick={() => onEdit(meal)}
                 >
                   <Edit className="w-4 h-4 mr-2" />
@@ -341,7 +380,7 @@ export const MealCard: React.FC<MealCardProps> = ({
                   <Button
                     size="sm"
                     variant="ghost"
-                    className="justify-start"
+                    className={`justify-start ${sizeClasses.button}`}
                     onClick={() => onDuplicate(meal)}
                   >
                     <Copy className="w-4 h-4 mr-2" />
@@ -352,7 +391,7 @@ export const MealCard: React.FC<MealCardProps> = ({
                   onRestore && (
                     <AlertDialog>
                       <AlertDialogTrigger asChild>
-                        <Button size="sm" variant="ghost" className="justify-start text-green-700 hover:text-green-800">
+                        <Button size="sm" variant="ghost" className={`justify-start text-green-700 hover:text-green-800 ${sizeClasses.button}`}>
                           <RotateCcw className="w-4 h-4 mr-2" />
                           Restore
                         </Button>
@@ -379,7 +418,7 @@ export const MealCard: React.FC<MealCardProps> = ({
                 ) : (
                   <AlertDialog>
                     <AlertDialogTrigger asChild>
-                      <Button size="sm" variant="ghost" className="justify-start text-red-700 hover:text-red-800">
+                      <Button size="sm" variant="ghost" className={`justify-start text-red-700 hover:text-red-800 ${sizeClasses.button}`}>
                         <Archive className="w-4 h-4 mr-2" />
                         Archive
                       </Button>

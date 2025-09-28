@@ -99,8 +99,6 @@ export interface Meal {
   meal_condiments?: MealCondiment[];
   dietary_tags?: DietaryTag[];
   estimated_price?: number; // Calculated field
-  ai_generated?: boolean; // Marks AI-seeded meals for safe cleanup
-  ai_batch_id?: string | null; // UUID grouping for batch operations
   isbycook?: boolean; // true if created by cook
   profile_id?: string; // uuid of cook's profile
   forreview?: boolean; // true when meal is submitted for admin review
@@ -128,7 +126,6 @@ export interface CreateMealData {
     quantity: string;
   }[];
   dietary_tag_ids: number[];
-  ai_generated?: boolean; // optional when creating via script
   ai_batch_id?: string; // optional batch grouping
   isbycook?: boolean;
   profile_id?: string;

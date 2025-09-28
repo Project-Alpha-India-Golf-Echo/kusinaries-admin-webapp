@@ -836,7 +836,6 @@ const _getAllMeals = async (): Promise<{ success: boolean; data?: Meal[]; error?
         )
       `)
       .eq('is_disabled', false) // Only get active (non-archived) meals
-      .eq('ai_generated', false) // Only get manually created meals, exclude AI-generated
       .order('created_at', { ascending: false });
 
     if (error) {
@@ -924,8 +923,6 @@ export const createMeal = async (mealData: CreateMealData): Promise<{ success: b
           recipe: mealData.recipe,
           image_url: mealData.image_url,
           is_disabled: false,
-          ai_generated: mealData.ai_generated ?? false,
-          ai_batch_id: mealData.ai_batch_id ?? null,
           created_at: new Date().toISOString(),
           updated_at: new Date().toISOString(),
           ...(mealData.isbycook !== undefined ? { isbycook: mealData.isbycook } : {}),
@@ -1011,31 +1008,7 @@ export const createMeal = async (mealData: CreateMealData): Promise<{ success: b
   }
 };
 
-// Delete all AI generated meals (optionally by batch id)
-export const deleteAiMeals = async (batchId?: string): Promise<{ success: boolean; error?: string; deleted?: number }> => {
-  try {
-    // Fetch meal ids to delete
-    let query = supabase.from('meals').select('meal_id').eq('ai_generated', true);
-    if (batchId) {
-      query = query.eq('ai_batch_id', batchId);
-    }
-    const { data: meals, error: fetchErr } = await query;
-    if (fetchErr) return { success: false, error: fetchErr.message };
-    const mealIds = (meals || []).map(m => m.meal_id);
-    if (mealIds.length === 0) return { success: true, deleted: 0 };
 
-    // Delete child rows first
-    const { error: delTags } = await supabase.from('meal_dietary_tags').delete().in('meal_id', mealIds);
-    if (delTags) return { success: false, error: delTags.message };
-    const { error: delIngs } = await supabase.from('meal_ingredients').delete().in('meal_id', mealIds);
-    if (delIngs) return { success: false, error: delIngs.message };
-    const { error: delMeals } = await supabase.from('meals').delete().in('meal_id', mealIds);
-    if (delMeals) return { success: false, error: delMeals.message };
-    return { success: true, deleted: mealIds.length };
-  } catch (e: any) {
-    return { success: false, error: 'Failed to delete AI meals' };
-  }
-};
 
 // Update an existing meal
 export const updateMeal = async (id: string, mealData: Partial<CreateMealData>): Promise<{ success: boolean; error?: string }> => {
@@ -1233,7 +1206,6 @@ export const duplicateMeal = async (id: number): Promise<{ success: boolean; err
         recipe: src.recipe,
         image_url: src.image_url,
         is_disabled: false,
-        ai_generated: false,
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
         // Preserve cook ownership and review status from source meal
@@ -1386,7 +1358,6 @@ const _getArchivedMeals = async (): Promise<{ success: boolean; data?: Meal[]; e
         )
       `)
       .eq('is_disabled', true)
-      .eq('ai_generated', false) // Only get manually created archived meals, exclude AI-generated
       .order('updated_at', { ascending: false });
 
     if (error) {
