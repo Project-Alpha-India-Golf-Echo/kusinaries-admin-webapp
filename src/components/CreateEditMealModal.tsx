@@ -264,9 +264,14 @@ export const CreateEditMealModal: React.FC<CreateEditMealModalProps> = ({
 
   // Listen for condiment updates from the management modal
   useEffect(() => {
-    const handleCondimentUpdate = () => {
-      // Trigger refresh for condiment sections by dispatching an event
-      window.dispatchEvent(new CustomEvent('condimentSaved'));
+    const handleCondimentUpdate = async () => {
+      // Refresh the condiments data in this modal
+      const condimentsFunction = userRole === 'admin' ? getAllCondimentsForAdmin : getAllCondiments;
+      const condimentsResponse = await condimentsFunction();
+      if (condimentsResponse.success && condimentsResponse.data) {
+        setAllCondiments(condimentsResponse.data);
+      }
+      // No need to dispatch another event - the CondimentSection handles its own refresh
     };
 
     window.addEventListener('condimentSaved', handleCondimentUpdate);
@@ -1250,6 +1255,7 @@ export const CreateEditMealModal: React.FC<CreateEditMealModalProps> = ({
                   selectedCondiments={selectedCondiments}
                   onCondimentSelect={handleCondimentSelect}
                   onQuantityChange={handleCondimentQuantityChange}
+                  onCondimentRemove={handleCondimentRemove}
                   userRole={userRole || undefined}
                 />
               </div>

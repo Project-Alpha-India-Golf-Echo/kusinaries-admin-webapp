@@ -2,15 +2,15 @@ import { Archive, Clock, Copy, Edit, RotateCcw, Settings, Tag, Utensils } from '
 import React from 'react';
 import type { Meal } from '../types';
 import {
-    AlertDialog,
-    AlertDialogAction,
-    AlertDialogCancel,
-    AlertDialogContent,
-    AlertDialogDescription,
-    AlertDialogFooter,
-    AlertDialogHeader,
-    AlertDialogTitle,
-    AlertDialogTrigger,
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
 } from './ui/alert-dialog';
 import { Button } from './ui/button';
 import { Popover, PopoverContent, PopoverTrigger } from './ui/popover';
@@ -44,22 +44,29 @@ const getStatusBadge = (meal: Meal) => {
   // Only show status for cook-created meals
   if (!meal.isbycook) return null;
 
-  if (meal.forreview === true) {
-    return (
-      <div className="absolute top-3 right-3 bg-yellow-100 text-yellow-800 px-2 py-1 rounded-full text-xs font-medium border border-yellow-200">
-        In Review
-      </div>
-    );
-  } else if (meal.forreview === false && meal.is_approved === true) {
+  // More defensive checking for the status flags
+  const isForReview = meal.forreview === true;
+  const isNotForReview = meal.forreview === false;
+  const isApproved = meal.is_approved === true;
+  const isRejected = meal.rejected === true;
+
+  // Priority order: Approved -> Rejected -> In Review
+  if (isNotForReview && isApproved) {
     return (
       <div className="absolute top-3 right-3 bg-green-100 text-green-800 px-2 py-1 rounded-full text-xs font-medium border border-green-200">
         Approved
       </div>
     );
-  } else if (meal.forreview === false && meal.is_approved === false && meal.rejected === true) {
+  } else if (isNotForReview && isRejected) {
     return (
       <div className="absolute top-3 right-3 bg-red-100 text-red-800 px-2 py-1 rounded-full text-xs font-medium border border-red-200">
         Rejected
+      </div>
+    );
+  } else if (isForReview) {
+    return (
+      <div className="absolute top-3 right-3 bg-yellow-100 text-yellow-800 px-2 py-1 rounded-full text-xs font-medium border border-yellow-200">
+        In Review
       </div>
     );
   }

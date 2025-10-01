@@ -27,7 +27,7 @@ export const CreateEditCondimentModal: React.FC<CreateEditCondimentModalProps> =
   onCondimentSaved,
   editingCondiment
 }) => {
-  const { userRole, user } = useAuth();
+  const { userRole, user, isVerifiedCook } = useAuth();
   const [formData, setFormData] = useState({
     name: '',
     unit_type: 'ml' as CondimentUnitType,
@@ -68,6 +68,12 @@ export const CreateEditCondimentModal: React.FC<CreateEditCondimentModalProps> =
     setIsLoading(true);
 
     try {
+      // Check if cook is verified when trying to upload with image
+      if (isCook && !isVerifiedCook && selectedImage) {
+        toast.error('Only verified cooks can upload images. Please get verified first or create the condiment without an image.');
+        return;
+      }
+
       const packagePrice = parseFloat(formData.package_price);
       const packageQuantity = parseFloat(formData.package_quantity);
       if (isNaN(packagePrice) || packagePrice <= 0) {
@@ -116,7 +122,7 @@ export const CreateEditCondimentModal: React.FC<CreateEditCondimentModalProps> =
         package_price: packagePrice,
         package_quantity: packageQuantity,
         image_url: imageUrl,
-        ...(isCook && user ? {
+        ...(isCook && isVerifiedCook && user ? {
           isbycook: true,
           profile_id: user.id
         } : {})
@@ -264,6 +270,11 @@ export const CreateEditCondimentModal: React.FC<CreateEditCondimentModalProps> =
               <Label className="text-sm font-medium text-gray-700">
                 Condiment Image
               </Label>
+              {isCook && !isVerifiedCook && (
+                <div className="text-xs text-amber-600 bg-amber-50 border border-amber-200 rounded-md p-2">
+                  <strong>Note:</strong> You need to be a verified cook to upload images. You can create condiments without images or get verified first.
+                </div>
+              )}
               <FileUpload
                 maxFiles={1}
                 maxSize={5 * 1024 * 1024}

@@ -29,7 +29,7 @@ export const CreateEditIngredientModal: React.FC<CreateEditIngredientModalProps>
   editingIngredient,
   initialCategory
 }) => {
-  const { userRole, user } = useAuth();
+  const { userRole, user, isVerifiedCook } = useAuth();
   const [formData, setFormData] = useState({
     name: '',
     category: 'Go' as IngredientCategory,
@@ -44,6 +44,7 @@ export const CreateEditIngredientModal: React.FC<CreateEditIngredientModalProps>
   const isEditing = !!editingIngredient;
   const isCategoryLocked = !!initialCategory && !isEditing;
   const isCook = userRole === 'cook';
+  const isVerifiedCookUser = isCook && isVerifiedCook;
 
   // Initialize form data when modal opens or editing ingredient changes
   useEffect(() => {
@@ -77,6 +78,12 @@ export const CreateEditIngredientModal: React.FC<CreateEditIngredientModalProps>
     setIsLoading(true);
 
     try {
+      // Check if cook is verified when trying to upload with image
+      if (isCook && !isVerifiedCook && selectedImage) {
+        toast.error('Only verified cooks can upload images. Please get verified first or create the ingredient without an image.');
+        return;
+      }
+
       const packagePrice = parseFloat(formData.package_price);
       const packageQuantity = parseFloat(formData.package_quantity);
       
@@ -162,7 +169,7 @@ export const CreateEditIngredientModal: React.FC<CreateEditIngredientModalProps>
           package_price: packagePrice,
           package_quantity: packageQuantity,
           image_url: imageUrl,
-          ...(isCook && user ? {
+          ...(isCook && isVerifiedCook && user ? {
             isbycook: true,
             profile_id: user.id
           } : {})
@@ -346,6 +353,11 @@ export const CreateEditIngredientModal: React.FC<CreateEditIngredientModalProps>
 
           <div className='space-y-2 pb-20'>
             <Label htmlFor="image">Ingredient Image (Optional)</Label>
+            {isCook && !isVerifiedCook && (
+              <div className="text-xs text-amber-600 bg-amber-50 border border-amber-200 rounded-md p-2">
+                <strong>Note:</strong> You need to be a verified cook to upload images. You can create ingredients without images or get verified first.
+              </div>
+            )}
             <div className="mt-1">
               <FileUpload
                 maxFiles={1}

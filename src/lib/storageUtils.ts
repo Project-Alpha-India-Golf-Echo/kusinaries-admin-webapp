@@ -173,11 +173,19 @@ export const uploadImageToStorage = async (
 
     console.log('Attempting to upload to path:', filePath);
 
-    // Upload file to storage (private bucket)
+    // Prepare metadata for tracking uploads
+    const metadata: Record<string, string> = {};
+    if (user?.id) {
+      metadata.uploaded_by = user.id;
+    }
+
+    // Upload file to storage (private bucket) with metadata
     const { error } = await supabase
       .storage
       .from(BUCKET)
-        .upload(filePath, file);
+      .upload(filePath, file, {
+        metadata
+      });
 
     if (error) {
       console.error('Storage upload error:', error);

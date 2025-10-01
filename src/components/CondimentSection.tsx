@@ -1,4 +1,4 @@
-import { Check, Package, Plus, Search, X as XIcon } from 'lucide-react';
+import { Check, Package, Plus, Search, Trash2, X as XIcon } from 'lucide-react';
 import React, { useEffect, useState } from 'react';
 import { useModal } from '../contexts/ModalContext';
 import { getAllCondiments, getAllCondimentsForAdmin } from '../lib/supabaseQueries';
@@ -11,6 +11,7 @@ interface CondimentSectionProps {
   selectedCondiments: { condiment_id: number; quantity: string }[];
   onCondimentSelect: (condiment: Condiment) => void;
   onQuantityChange: (condimentId: number, quantity: string) => void;
+  onCondimentRemove: (condimentId: number) => void;
   userRole?: string; // Add userRole prop to filter out cook-created condiments for admin users
 }
 
@@ -18,6 +19,7 @@ export const CondimentSection: React.FC<CondimentSectionProps> = ({
   selectedCondiments,
   onCondimentSelect,
   onQuantityChange,
+  onCondimentRemove,
   userRole
 }) => {
   const [condiments, setCondiments] = useState<Condiment[]>([]);
@@ -49,7 +51,11 @@ export const CondimentSection: React.FC<CondimentSectionProps> = ({
 
   // Listen for condiment added events
   useEffect(() => {
-    const refresh = () => loadCondiments();
+    const refresh = () => {
+      loadCondiments();
+      // Clear search term when condiments are updated to avoid confusion
+      setSearchTerm('');
+    };
     window.addEventListener('condimentAdded', refresh);
     window.addEventListener('condimentSaved', refresh);
     return () => {
@@ -320,7 +326,7 @@ export const CondimentSection: React.FC<CondimentSectionProps> = ({
                     </Button>
                   </div>
                 ) : selected ? (
-                  <div className="flex items-center space-x-3">
+                  <div className="flex items-center space-x-2">
                     <CondimentQuantitySelector
                       value={getCondimentQuantity(condiment.condiment_id)}
                       onChange={(value) => onQuantityChange(condiment.condiment_id, value)}
@@ -331,6 +337,16 @@ export const CondimentSection: React.FC<CondimentSectionProps> = ({
                       <Check className="w-3 h-3" />
                       Added
                     </span>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      onClick={() => onCondimentRemove(condiment.condiment_id)}
+                      className="text-red-600 hover:text-red-700 hover:bg-red-50 border-red-200 hover:border-red-300 shadow-sm"
+                      title="Remove condiment"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </Button>
                   </div>
                 ) : (
                   <Button
