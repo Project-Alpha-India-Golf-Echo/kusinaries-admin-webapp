@@ -44,7 +44,6 @@ export const CreateEditIngredientModal: React.FC<CreateEditIngredientModalProps>
   const isEditing = !!editingIngredient;
   const isCategoryLocked = !!initialCategory && !isEditing;
   const isCook = userRole === 'cook';
-  const isVerifiedCookUser = isCook && isVerifiedCook;
 
   // Initialize form data when modal opens or editing ingredient changes
   useEffect(() => {
