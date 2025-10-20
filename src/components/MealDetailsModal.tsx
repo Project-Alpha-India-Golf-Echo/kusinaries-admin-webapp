@@ -145,7 +145,9 @@ export const MealDetailsModal: React.FC<MealDetailsModalProps> = ({
                     <div><span className="font-medium">Category:</span> {Array.isArray(meal.category) ? meal.category.join(', ') : meal.category}</div>
                     <div><span className="font-medium">Cook:</span> {meal.profiles?.email?.split('@')[0] || 'Unknown'}</div>
                     <div><span className="font-medium">Submitted:</span> {formatDate(meal.created_at)}</div>
-                    <div><span className="font-medium">Estimated Price:</span> {formatPrice(meal.estimated_price)}</div>
+                    {meal.estimated_price !== null && meal.estimated_price !== undefined && (
+                      <div><span className="font-medium">Estimated Price:</span> {formatPrice(meal.estimated_price)}</div>
+                    )}
                     {meal.rejection_reason && (
                       <div className="mt-2">
                         <span className="font-medium text-red-700">Rejection Reason:</span>
