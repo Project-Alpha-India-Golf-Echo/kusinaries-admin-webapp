@@ -11,6 +11,7 @@ import { MealDetailsModal } from '../components/MealDetailsModal';
 import { useDocumentTitle } from '../hooks/useDocumentTitle';
 import { getAllMeals, reopenMealReview, updateMealApprovalStatus } from '../lib/supabaseQueries';
 import type { Meal } from '../types';
+import { useAuth } from '../contexts/AuthContext';
 
 export const MealSubmissionsPage = () => {
   useDocumentTitle('Meal Submissions');
@@ -26,6 +27,7 @@ export const MealSubmissionsPage = () => {
   const [rejectionReason, setRejectionReason] = useState('');
   const [viewingMeal, setViewingMeal] = useState<Meal | null>(null);
   const [showMealDetails, setShowMealDetails] = useState(false);
+  const { isReadOnly } = useAuth();
 
   // Debounce search
   useEffect(() => {
@@ -101,7 +103,16 @@ export const MealSubmissionsPage = () => {
     setFilteredMeals(filtered);
   };
 
+  const guardReadOnly = () => {
+    if (!isReadOnly) return false;
+    toast.info('Read-only mode enabled', {
+      description: 'Guest access cannot approve, reject, or reopen submissions.',
+    });
+    return true;
+  };
+
   const handleApproval = async (mealId: number) => {
+    if (guardReadOnly()) return;
     setActionLoading(mealId);
     try {
       const result = await updateMealApprovalStatus(mealId, true);
@@ -123,6 +134,7 @@ export const MealSubmissionsPage = () => {
   };
 
   const submitRejection = async () => {
+    if (guardReadOnly()) return;
     if (!rejectingMeal) return;
     setActionLoading(rejectingMeal.meal_id);
     
@@ -148,6 +160,7 @@ export const MealSubmissionsPage = () => {
   };
 
   const handleReopen = async (meal: Meal) => {
+    if (guardReadOnly()) return;
     setActionLoading(meal.meal_id);
     try {
       const result = await reopenMealReview(meal.meal_id);
@@ -369,7 +382,7 @@ export const MealSubmissionsPage = () => {
                             <Button 
                               size="sm" 
                               onClick={() => handleApproval(meal.meal_id)}
-                              disabled={actionLoading === meal.meal_id}
+                              disabled={actionLoading === meal.meal_id || isReadOnly}
                               className="bg-green-600 hover:bg-green-700 text-white"
                             >
                               <Check className="w-4 h-4 mr-1" />
@@ -378,8 +391,14 @@ export const MealSubmissionsPage = () => {
                             <Button 
                               size="sm" 
                               variant="outline" 
-                              onClick={() => setRejectingMeal(meal)}
-                              disabled={actionLoading === meal.meal_id}
+                              onClick={() => {
+                                if (isReadOnly) {
+                                  guardReadOnly();
+                                  return;
+                                }
+                                setRejectingMeal(meal);
+                              }}
+                              disabled={actionLoading === meal.meal_id || isReadOnly}
                               className="border-red-300 text-red-700 hover:bg-red-50"
                             >
                               <X className="w-4 h-4 mr-1" />
@@ -393,7 +412,7 @@ export const MealSubmissionsPage = () => {
                           <Button 
                             size="sm" 
                             variant="outline" 
-                            disabled={actionLoading === meal.meal_id} 
+                            disabled={actionLoading === meal.meal_id || isReadOnly} 
                             onClick={() => handleReopen(meal)} 
                             className="border-blue-600 text-blue-700 hover:bg-blue-50"
                           >
@@ -429,6 +448,7 @@ export const MealSubmissionsPage = () => {
               placeholder="Reason (required)" 
               value={rejectionReason} 
               onChange={e => setRejectionReason(e.target.value)} 
+              disabled={isReadOnly}
             />
           </div>
           <AlertDialogFooter>
@@ -436,7 +456,7 @@ export const MealSubmissionsPage = () => {
               Cancel
             </AlertDialogCancel>
             <AlertDialogAction 
-              disabled={!rejectionReason || actionLoading === rejectingMeal?.meal_id} 
+              disabled={!rejectionReason || actionLoading === rejectingMeal?.meal_id || isReadOnly} 
               onClick={submitRejection} 
               className="bg-red-600 hover:bg-red-700"
             >

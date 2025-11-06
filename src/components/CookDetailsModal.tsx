@@ -1,3 +1,4 @@
+import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/lib/supabase';
 import { approveCook, rejectCook } from '@/lib/supabaseQueries';
 import type { Cook } from '@/types';
@@ -16,6 +17,7 @@ interface CookDetailsModalProps {
 const list = (arr?: string[] | null) => (arr && arr.length ? arr.join(', ') : '—');
 
 export const CookDetailsModal = ({ cook, open, onClose }: CookDetailsModalProps) => {
+  const { isReadOnly } = useAuth();
   const [consentNeeded, setConsentNeeded] = useState(true);
   const [showConsentDialog, setShowConsentDialog] = useState(false);
   const [viewGranted, setViewGranted] = useState(false);
@@ -31,6 +33,13 @@ export const CookDetailsModal = ({ cook, open, onClose }: CookDetailsModalProps)
   const [showRejectDialog, setShowRejectDialog] = useState(false);
   const [rejectionReason, setRejectionReason] = useState('');
   const [showApproveDialog, setShowApproveDialog] = useState(false);
+  const guardReadOnly = () => {
+    if (!isReadOnly) return false;
+    toast.info('Read-only mode enabled', {
+      description: 'Guest access cannot approve or reject applications.',
+    });
+    return true;
+  };
 
   // Recursive lister adapted from cook app (depth-limited)
   const listAllFiles = useCallback(async (prefix: string, depth = 4): Promise<string[]> => {
@@ -481,13 +490,19 @@ export const CookDetailsModal = ({ cook, open, onClose }: CookDetailsModalProps)
                   variant="outline"
                   size="sm"
                   disabled={actionLoading}
-                  onClick={() => setShowRejectDialog(true)}
+                  onClick={() => {
+                    if (guardReadOnly()) return;
+                    setShowRejectDialog(true);
+                  }}
                   className="border-red-600 text-red-700 hover:bg-red-50"
                 >Reject</Button>
                 <Button
                   size="sm"
                   disabled={actionLoading}
-                  onClick={() => setShowApproveDialog(true)}
+                  onClick={() => {
+                    if (guardReadOnly()) return;
+                    setShowApproveDialog(true);
+                  }}
                   className="bg-green-600 hover:bg-green-700 text-white"
                 >Approve</Button>
               </>
@@ -591,6 +606,7 @@ export const CookDetailsModal = ({ cook, open, onClose }: CookDetailsModalProps)
               className="bg-red-600 hover:bg-red-700"
               disabled={actionLoading}
               onClick={async () => {
+                if (guardReadOnly()) return;
                 setActionLoading(true);
                 const res = await rejectCook(cook.id, rejectionReason || 'Not specified');
                 if (res.success) {
@@ -621,6 +637,7 @@ export const CookDetailsModal = ({ cook, open, onClose }: CookDetailsModalProps)
               className="bg-green-600 hover:bg-green-700"
               disabled={actionLoading}
               onClick={async () => {
+                if (guardReadOnly()) return;
                 setActionLoading(true);
                 const res = await approveCook(cook.id);
                 if (res.success) {

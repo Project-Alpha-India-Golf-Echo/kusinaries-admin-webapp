@@ -12,6 +12,7 @@ interface MealGridProps {
   onRestore?: (mealId: number) => void;
   onDuplicate?: (meal: Meal) => void;
   isArchived?: boolean;
+  readOnly?: boolean;
 }
 
 export const MealGrid: React.FC<MealGridProps> = ({
@@ -21,7 +22,8 @@ export const MealGrid: React.FC<MealGridProps> = ({
   onArchive,
   onRestore,
   onDuplicate,
-  isArchived = false
+  isArchived = false,
+  readOnly = false
 }) => {
   const getGridClasses = () => {
     switch (viewMode) {
@@ -60,6 +62,7 @@ export const MealGrid: React.FC<MealGridProps> = ({
             onRestore={onRestore}
             onDuplicate={onDuplicate}
             isArchived={isArchived}
+            readOnly={readOnly}
           />
         ))}
       </div>
@@ -78,6 +81,7 @@ export const MealGrid: React.FC<MealGridProps> = ({
           onDuplicate={onDuplicate}
           isArchived={isArchived}
           size={getCardSize()}
+          readOnly={readOnly}
         />
       ))}
     </div>

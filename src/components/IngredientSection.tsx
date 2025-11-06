@@ -15,6 +15,7 @@ interface IngredientSectionProps {
   onIngredientRemove: (ingredientId: number, isEatenSeparately?: boolean) => void;
   userRole?: string; // Add userRole prop to filter out cook-created ingredients for admin users
   fruitsEatenSeparately?: { ingredient_id: number; quantity: string }[]; // Array of fruits that are eaten separately with quantities
+  readOnly?: boolean;
 }
 
 const getCategoryInfo = (category: IngredientCategory) => {
@@ -59,7 +60,8 @@ export const IngredientSection: React.FC<IngredientSectionProps> = ({
   onQuantityChange,
   onIngredientRemove,
   userRole,
-  fruitsEatenSeparately = []
+  fruitsEatenSeparately = [],
+  readOnly = false
 }) => {
   const [ingredients, setIngredients] = useState<Ingredient[]>([]);
   const [glowTab, setGlowTab] = useState<'Vegetables' | 'Fruits'>('Vegetables');
@@ -143,10 +145,12 @@ export const IngredientSection: React.FC<IngredientSectionProps> = ({
   };
 
   const startPendingAdd = (ingredientId: number) => {
+    if (readOnly) return;
     setPendingAdds(prev => ({ ...prev, [ingredientId]: '' }));
   };
 
   const cancelPendingAdd = (ingredientId: number) => {
+    if (readOnly) return;
     setPendingAdds(prev => {
       const clone = { ...prev };
       delete clone[ingredientId];
@@ -155,10 +159,12 @@ export const IngredientSection: React.FC<IngredientSectionProps> = ({
   };
 
   const updatePendingQuantity = (ingredientId: number, quantity: string) => {
+    if (readOnly) return;
     setPendingAdds(prev => ({ ...prev, [ingredientId]: quantity }));
   };
 
   const confirmAdd = (ingredient: Ingredient) => {
+    if (readOnly) return;
     const draft = pendingAdds[ingredient.ingredient_id];
     if (!draft || !validateQuantity(draft.trim())) return;
     const isEatenSeparately = category === 'Glow' && glowTab === 'Fruits' && fruitTab === 'Eaten Separately';
@@ -190,6 +196,7 @@ export const IngredientSection: React.FC<IngredientSectionProps> = ({
           onClick={() => openCreateIngredientModal(category)}
           className={`${categoryInfo.buttonColor} text-white`}
           size="sm"
+          disabled={readOnly}
         >
           <Plus className="w-4 h-4 mr-1" />
           Add New
@@ -256,6 +263,7 @@ export const IngredientSection: React.FC<IngredientSectionProps> = ({
             variant="outline"
             size="sm"
             className="mt-2"
+            disabled={readOnly}
           >
             Add the first ingredient
           </Button>
@@ -333,6 +341,7 @@ export const IngredientSection: React.FC<IngredientSectionProps> = ({
                         value={pendingQty}
                         onChange={(value) => updatePendingQuantity(ingredient.ingredient_id, value)}
                         className="w-full"
+                        disabled={readOnly}
                       />
                       {!validateQuantity(pendingQty.trim()) && pendingQty.trim() && (
                         <div className="absolute -bottom-5 left-0 text-[10px] text-red-500 whitespace-nowrap">Invalid format</div>
@@ -342,7 +351,7 @@ export const IngredientSection: React.FC<IngredientSectionProps> = ({
                       type="button"
                       size="sm"
                       onClick={() => confirmAdd(ingredient)}
-                      disabled={!pendingQty.trim() || !validateQuantity(pendingQty.trim())}
+                      disabled={readOnly || !pendingQty.trim() || !validateQuantity(pendingQty.trim())}
                       className="bg-green-600 hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed shadow-sm"
                     >
                       <Check className="w-4 h-4" />
@@ -353,6 +362,7 @@ export const IngredientSection: React.FC<IngredientSectionProps> = ({
                       variant="outline"
                       onClick={() => cancelPendingAdd(ingredient.ingredient_id)}
                       className="text-red-600 hover:text-red-700 hover:bg-red-50 border-red-200 hover:border-red-300 shadow-sm"
+                      disabled={readOnly}
                     >
                       <XIcon className="w-4 h-4" />
                     </Button>
@@ -364,6 +374,7 @@ export const IngredientSection: React.FC<IngredientSectionProps> = ({
                       value={currentQuantity}
                       onChange={(value) => onQuantityChange(ingredient.ingredient_id, value, category === 'Glow' && glowTab === 'Fruits' && fruitTab === 'Eaten Separately')}
                       className="flex-1"
+                      disabled={readOnly}
                     />
                     <span className="inline-flex items-center gap-1 text-[10px] px-2.5 py-1.5 rounded-full bg-blue-600 text-white font-bold uppercase tracking-wide shadow-sm whitespace-nowrap">
                       <Check className="w-3 h-3" />
@@ -375,6 +386,7 @@ export const IngredientSection: React.FC<IngredientSectionProps> = ({
                       variant="outline"
                       onClick={() => onIngredientRemove(ingredient.ingredient_id, category === 'Glow' && glowTab === 'Fruits' && fruitTab === 'Eaten Separately')}
                       className="text-red-600 hover:text-red-700 hover:bg-red-50 border-red-200 hover:border-red-300 shadow-sm"
+                      disabled={readOnly}
                       title="Remove ingredient"
                     >
                       <Trash2 className="w-4 h-4" />
@@ -394,6 +406,7 @@ export const IngredientSection: React.FC<IngredientSectionProps> = ({
                       size="sm"
                       onClick={() => startPendingAdd(ingredient.ingredient_id)}
                       className={`${categoryInfo.buttonColor} text-white shadow-sm hover:shadow-md transition-shadow px-4 py-2 w-full`}
+                      disabled={readOnly}
                     >
                       Add
                     </Button>

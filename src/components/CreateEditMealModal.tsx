@@ -40,7 +40,8 @@ export const CreateEditMealModal: React.FC<CreateEditMealModalProps> = ({
   onMealSaved,
   editingMeal
 }) => {
-  const { userRole, isVerifiedCook, user } = useAuth();
+  const { userRole, isVerifiedCook, user, isReadOnly } = useAuth();
+  const isReadOnlyMode = isReadOnly;
   const [formData, setFormData] = useState({
     name: '',
     category: [] as MealCategory[], // Changed to array for multiple categories
@@ -649,6 +650,12 @@ export const CreateEditMealModal: React.FC<CreateEditMealModalProps> = ({
   // First stage: validation then open confirmation dialog
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    if (isReadOnlyMode) {
+      toast.info('Read-only mode enabled', {
+        description: 'Guest access cannot create or update meals.',
+      });
+      return;
+    }
     const errors = computeValidationErrors();
     setValidationErrors(errors);
     if (errors.length) {
@@ -660,6 +667,13 @@ export const CreateEditMealModal: React.FC<CreateEditMealModalProps> = ({
 
   // Second stage: confirmed create/update
   const handleConfirmSubmit = async () => {
+    if (isReadOnlyMode) {
+      toast.info('Read-only mode enabled', {
+        description: 'Guest access cannot create or update meals.',
+      });
+      setShowConfirm(false);
+      return;
+    }
     setIsLoading(true);
     try {
       let imageUrl = undefined;
@@ -735,6 +749,7 @@ export const CreateEditMealModal: React.FC<CreateEditMealModalProps> = ({
   };
 
   const handleIngredientSelect = (ingredient: Ingredient, isEatenSeparately?: boolean) => {
+    if (isReadOnlyMode) return;
     if (ingredient.glow_subcategory === 'Fruits') {
       if (isEatenSeparately) {
         // Add to eaten separately list
@@ -756,6 +771,7 @@ export const CreateEditMealModal: React.FC<CreateEditMealModalProps> = ({
   };
 
   const handleIngredientRemove = (ingredientId: number, isEatenSeparately?: boolean) => {
+    if (isReadOnlyMode) return;
     if (isEatenSeparately) {
       setFruitsEatenSeparately(prev => prev.filter(item => item.ingredient_id !== ingredientId));
     } else {
@@ -764,6 +780,7 @@ export const CreateEditMealModal: React.FC<CreateEditMealModalProps> = ({
   };
 
   const handleQuantityChange = (ingredientId: number, quantity: string, isEatenSeparately?: boolean) => {
+    if (isReadOnlyMode) return;
     if (isEatenSeparately) {
       setFruitsEatenSeparately(prev =>
         prev.map(item =>
@@ -780,12 +797,14 @@ export const CreateEditMealModal: React.FC<CreateEditMealModalProps> = ({
   };
 
   const handleCondimentSelect = (condiment: Condiment) => {
+    if (isReadOnlyMode) return;
     if (!selectedCondiments.some(item => item.condiment_id === condiment.condiment_id)) {
       setSelectedCondiments(prev => [...prev, { condiment_id: condiment.condiment_id, quantity: '' }]);
     }
   };
 
   const handleCondimentQuantityChange = (condimentId: number, quantity: string) => {
+    if (isReadOnlyMode) return;
     setSelectedCondiments(prev =>
       prev.map(item =>
         item.condiment_id === condimentId ? { ...item, quantity } : item
@@ -794,12 +813,14 @@ export const CreateEditMealModal: React.FC<CreateEditMealModalProps> = ({
   };
 
   const handleCondimentRemove = (condimentId: number) => {
+    if (isReadOnlyMode) return;
     setSelectedCondiments(prev => prev.filter(item => item.condiment_id !== condimentId));
   };
 
 
 
   const handleDietaryTagToggle = (tagId: number) => {
+    if (isReadOnlyMode) return;
     setSelectedDietaryTags(prev =>
       prev.includes(tagId)
         ? prev.filter(id => id !== tagId)
@@ -808,6 +829,12 @@ export const CreateEditMealModal: React.FC<CreateEditMealModalProps> = ({
   };
 
   const handleAddDietaryTag = async () => {
+    if (isReadOnlyMode) {
+      toast.info('Read-only mode enabled', {
+        description: 'Guest access cannot add dietary tags.',
+      });
+      return;
+    }
     const name = newTagName.trim();
     if (!name) {
       setTagError('Enter a tag name');
@@ -841,11 +868,13 @@ export const CreateEditMealModal: React.FC<CreateEditMealModalProps> = ({
   };
 
   const openDisableDialog = (tag: DietaryTag) => {
+    if (isReadOnlyMode) return;
     setTagToDisable(tag);
     setIsDisableOpen(true);
   };
 
   const confirmDisableTag = async () => {
+    if (isReadOnlyMode) return;
     if (!tagToDisable) return;
     setIsDisabling(true);
     const res = await disableDietaryTag(tagToDisable.tag_id);
@@ -934,6 +963,7 @@ export const CreateEditMealModal: React.FC<CreateEditMealModalProps> = ({
                 size="sm"
                 onClick={() => setShowClearConfirm(true)}
                 className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                disabled={isReadOnlyMode}
               >
                 <Trash2 className="w-4 h-4 mr-1" />
                 Clear All
@@ -949,6 +979,12 @@ export const CreateEditMealModal: React.FC<CreateEditMealModalProps> = ({
             </Button>
           </div>
         </div>
+
+        {isReadOnlyMode && (
+          <div className="mx-6 mt-4 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+            Viewing in read-only mode. Editing controls are disabled for guest access.
+          </div>
+        )}
 
         {/* Rejection Notice for rejected meals */}
         {isRejectedMeal && editingMeal?.rejection_reason && (
@@ -1002,6 +1038,7 @@ export const CreateEditMealModal: React.FC<CreateEditMealModalProps> = ({
                     onChange={(e) => handleInputChange('name', e.target.value)}
                     placeholder="e.g., Chicken Tinola with Malunggay"
                     required
+                    disabled={isReadOnlyMode}
                   />
                 </div>
 
@@ -1033,6 +1070,7 @@ export const CreateEditMealModal: React.FC<CreateEditMealModalProps> = ({
                             handleInputChange('category', newCategories);
                           }}
                           className="rounded"
+                          disabled={isReadOnlyMode}
                         />
                         <span className="text-sm">{category}</span>
                       </label>
@@ -1050,6 +1088,7 @@ export const CreateEditMealModal: React.FC<CreateEditMealModalProps> = ({
                     placeholder="Enter cooking instructions..."
                     rows={4}
                     className="h-32 overflow-y-auto resize-none"
+                    disabled={isReadOnlyMode}
                   />
 
                 </div>
@@ -1065,6 +1104,7 @@ export const CreateEditMealModal: React.FC<CreateEditMealModalProps> = ({
                   value={selectedImage ? [selectedImage] : []}
                   onValueChange={(files) => setSelectedImage(files[0] ?? null)}
                   onFileReject={handleFileReject}
+                  disabled={isReadOnlyMode}
                 >
                   <FileUploadDropzone>
                     <div className="flex flex-col items-center gap-1 text-center">
@@ -1117,6 +1157,7 @@ export const CreateEditMealModal: React.FC<CreateEditMealModalProps> = ({
                         type="button"
                         onClick={() => handleDietaryTagToggle(tag.tag_id)}
                         className="flex-1"
+                        disabled={isReadOnlyMode}
                       >
                         {tag.tag_name}
                       </button>
@@ -1129,6 +1170,7 @@ export const CreateEditMealModal: React.FC<CreateEditMealModalProps> = ({
                         }}
                         className="text-gray-400 hover:text-red-600 transition-colors ml-1"
                         aria-label="Disable tag"
+                        disabled={isReadOnlyMode}
                       >
                         <X className="w-4 h-4" />
                       </button>
@@ -1137,8 +1179,18 @@ export const CreateEditMealModal: React.FC<CreateEditMealModalProps> = ({
                 ))}
                 <button
                   type="button"
-                  onClick={() => { setIsAddOpen(true); setTagError(''); }}
+                  onClick={() => {
+                    if (isReadOnlyMode) {
+                      toast.info('Read-only mode enabled', {
+                        description: 'Guest access cannot create dietary tags.',
+                      });
+                      return;
+                    }
+                    setIsAddOpen(true);
+                    setTagError('');
+                  }}
                   className="flex items-center gap-2 px-3 py-1 rounded-full text-sm transition-colors mr-1 bg-green-100 text-green-700 hover:bg-gray-200"
+                  disabled={isReadOnlyMode}
                 >
                   <Plus className="w-4 h-4" /> Add new dietary tag
                 </button>
@@ -1163,8 +1215,17 @@ export const CreateEditMealModal: React.FC<CreateEditMealModalProps> = ({
                     type="button"
                     variant="outline"
                     size="sm"
-                    onClick={openIngredientManagementModal}
+                    onClick={() => {
+                      if (isReadOnlyMode) {
+                        toast.info('Read-only mode enabled', {
+                          description: 'Guest access cannot manage ingredients.',
+                        });
+                        return;
+                      }
+                      openIngredientManagementModal();
+                    }}
                     className="text-sm"
+                    disabled={isReadOnlyMode}
                   >
                     <Settings className="w-4 h-4 mr-1" />
                     Manage Ingredients
@@ -1215,6 +1276,7 @@ export const CreateEditMealModal: React.FC<CreateEditMealModalProps> = ({
                   onIngredientRemove={handleIngredientRemove}
                   userRole={userRole || undefined}
                   fruitsEatenSeparately={fruitsEatenSeparately}
+                  readOnly={isReadOnlyMode}
                 />
                 <IngredientSection
                   category="Grow"
@@ -1224,6 +1286,7 @@ export const CreateEditMealModal: React.FC<CreateEditMealModalProps> = ({
                   onIngredientRemove={handleIngredientRemove}
                   userRole={userRole || undefined}
                   fruitsEatenSeparately={fruitsEatenSeparately}
+                  readOnly={isReadOnlyMode}
                 />
                 <IngredientSection
                   category="Glow"
@@ -1233,6 +1296,7 @@ export const CreateEditMealModal: React.FC<CreateEditMealModalProps> = ({
                   onIngredientRemove={handleIngredientRemove}
                   userRole={userRole || undefined}
                   fruitsEatenSeparately={fruitsEatenSeparately}
+                  readOnly={isReadOnlyMode}
                 />
               </div>
 
@@ -1244,8 +1308,17 @@ export const CreateEditMealModal: React.FC<CreateEditMealModalProps> = ({
                     type="button"
                     variant="outline"
                     size="sm"
-                    onClick={openCondimentManagementModal}
+                    onClick={() => {
+                      if (isReadOnlyMode) {
+                        toast.info('Read-only mode enabled', {
+                          description: 'Guest access cannot manage condiments.',
+                        });
+                        return;
+                      }
+                      openCondimentManagementModal();
+                    }}
                     className="text-sm"
+                    disabled={isReadOnlyMode}
                   >
                     <Settings className="w-4 h-4 mr-1" />
                     Manage Condiments
@@ -1257,6 +1330,7 @@ export const CreateEditMealModal: React.FC<CreateEditMealModalProps> = ({
                   onQuantityChange={handleCondimentQuantityChange}
                   onCondimentRemove={handleCondimentRemove}
                   userRole={userRole || undefined}
+                  readOnly={isReadOnlyMode}
                 />
               </div>
 
@@ -1346,7 +1420,8 @@ export const CreateEditMealModal: React.FC<CreateEditMealModalProps> = ({
                                 <button
                                   type="button"
                                   onClick={() => handleIngredientRemove(item.ing.ingredient_id)}
-                                  className="opacity-60 hover:opacity-100 text-red-500 hover:text-red-600 transition-colors"
+                                  className="opacity-60 hover:opacity-100 text-red-500 hover:text-red-600 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                                  disabled={isReadOnlyMode}
                                   aria-label={`Remove ${item.ing.name}`}
                                 >
                                   ×
@@ -1377,7 +1452,8 @@ export const CreateEditMealModal: React.FC<CreateEditMealModalProps> = ({
                                 <button
                                   type="button"
                                   onClick={() => handleIngredientRemove(item.ing.ingredient_id)}
-                                  className="opacity-60 hover:opacity-100 text-red-500 hover:text-red-600 transition-colors"
+                                  className="opacity-60 hover:opacity-100 text-red-500 hover:text-red-600 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                                  disabled={isReadOnlyMode}
                                   aria-label={`Remove ${item.ing.name}`}
                                 >
                                   ×
@@ -1408,7 +1484,8 @@ export const CreateEditMealModal: React.FC<CreateEditMealModalProps> = ({
                                 <button
                                   type="button"
                                   onClick={() => handleIngredientRemove(item.ing.ingredient_id)}
-                                  className="opacity-60 hover:opacity-100 text-red-500 hover:text-red-600 transition-colors"
+                                  className="opacity-60 hover:opacity-100 text-red-500 hover:text-red-600 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                                  disabled={isReadOnlyMode}
                                   aria-label={`Remove ${item.ing.name}`}
                                 >
                                   ×
@@ -1439,7 +1516,8 @@ export const CreateEditMealModal: React.FC<CreateEditMealModalProps> = ({
                                 <button
                                   type="button"
                                   onClick={() => handleIngredientRemove(item.ing.ingredient_id)}
-                                  className="opacity-60 hover:opacity-100 text-red-500 hover:text-red-600 transition-colors"
+                                  className="opacity-60 hover:opacity-100 text-red-500 hover:text-red-600 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                                  disabled={isReadOnlyMode}
                                   aria-label={`Remove ${item.ing.name}`}
                                 >
                                   ×
@@ -1470,7 +1548,8 @@ export const CreateEditMealModal: React.FC<CreateEditMealModalProps> = ({
                                 <button
                                   type="button"
                                   onClick={() => handleIngredientRemove(item.ing.ingredient_id, true)}
-                                  className="opacity-60 hover:opacity-100 text-red-500 hover:text-red-600 transition-colors"
+                                  className="opacity-60 hover:opacity-100 text-red-500 hover:text-red-600 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                                  disabled={isReadOnlyMode}
                                   aria-label={`Remove ${item.ing.name}`}
                                 >
                                   ×
@@ -1512,7 +1591,8 @@ export const CreateEditMealModal: React.FC<CreateEditMealModalProps> = ({
                               <button
                                 type="button"
                                 onClick={() => handleCondimentRemove(condimentItem.condiment_id)}
-                                className="opacity-60 hover:opacity-100 text-red-500 hover:text-red-600 transition-colors"
+                                className="opacity-60 hover:opacity-100 text-red-500 hover:text-red-600 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                                disabled={isReadOnlyMode}
                                 aria-label={`Remove ${condimentName}`}
                               >
                                 ×

@@ -23,6 +23,7 @@ interface MealCardProps {
   onDuplicate?: (meal: Meal) => void;
   isArchived?: boolean;
   size?: 'compact' | 'medium' | 'default';
+  readOnly?: boolean;
 }
 
 const getCategoryColor = (category: string) => {
@@ -81,7 +82,8 @@ export const MealCard: React.FC<MealCardProps> = ({
   onRestore,
   onDuplicate,
   isArchived = false,
-  size = 'default'
+  size = 'default',
+  readOnly = false
 }) => {
   const formatDate = (dateString: string) => {
     return new Date(dateString).toLocaleDateString('en-US', {
@@ -365,94 +367,96 @@ export const MealCard: React.FC<MealCardProps> = ({
         )}
 
         {/* Actions */}
-        <div className="flex justify-end">
-          <Popover>
-            <PopoverTrigger asChild>
-              <Button size="icon" variant="outline" className="hover:bg-gray-50" aria-label="Meal actions">
-                <Settings className="w-4 h-4" />
-              </Button>
-            </PopoverTrigger>
-            <PopoverContent className="w-48 p-2" align="end">
-              <div className="flex flex-col gap-1">
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  className={`justify-start ${sizeClasses.button}`}
-                  onClick={() => onEdit(meal)}
-                >
-                  <Edit className="w-4 h-4 mr-2" />
-                  Edit
+        {!readOnly && (
+          <div className="flex justify-end">
+            <Popover>
+              <PopoverTrigger asChild>
+                <Button size="icon" variant="outline" className="hover:bg-gray-50" aria-label="Meal actions">
+                  <Settings className="w-4 h-4" />
                 </Button>
-                {onDuplicate && !isArchived && (
+              </PopoverTrigger>
+              <PopoverContent className="w-48 p-2" align="end">
+                <div className="flex flex-col gap-1">
                   <Button
                     size="sm"
                     variant="ghost"
                     className={`justify-start ${sizeClasses.button}`}
-                    onClick={() => onDuplicate(meal)}
+                    onClick={() => onEdit(meal)}
                   >
-                    <Copy className="w-4 h-4 mr-2" />
-                    Duplicate
+                    <Edit className="w-4 h-4 mr-2" />
+                    Edit
                   </Button>
-                )}
-                {isArchived ? (
-                  onRestore && (
+                  {onDuplicate && !isArchived && (
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      className={`justify-start ${sizeClasses.button}`}
+                      onClick={() => onDuplicate(meal)}
+                    >
+                      <Copy className="w-4 h-4 mr-2" />
+                      Duplicate
+                    </Button>
+                  )}
+                  {isArchived ? (
+                    onRestore && (
+                      <AlertDialog>
+                        <AlertDialogTrigger asChild>
+                          <Button size="sm" variant="ghost" className={`justify-start text-green-700 hover:text-green-800 ${sizeClasses.button}`}>
+                            <RotateCcw className="w-4 h-4 mr-2" />
+                            Restore
+                          </Button>
+                        </AlertDialogTrigger>
+                        <AlertDialogContent>
+                          <AlertDialogHeader>
+                            <AlertDialogTitle>Restore Meal</AlertDialogTitle>
+                            <AlertDialogDescription>
+                              Are you sure you want to restore "{meal.name}"? The meal will be moved back to the active meals section.
+                            </AlertDialogDescription>
+                          </AlertDialogHeader>
+                          <AlertDialogFooter>
+                            <AlertDialogCancel>Cancel</AlertDialogCancel>
+                            <AlertDialogAction
+                              onClick={() => onRestore(meal.meal_id)}
+                              className="bg-green-600 hover:bg-green-700"
+                            >
+                              Restore Meal
+                            </AlertDialogAction>
+                          </AlertDialogFooter>
+                        </AlertDialogContent>
+                      </AlertDialog>
+                    )
+                  ) : (
                     <AlertDialog>
                       <AlertDialogTrigger asChild>
-                        <Button size="sm" variant="ghost" className={`justify-start text-green-700 hover:text-green-800 ${sizeClasses.button}`}>
-                          <RotateCcw className="w-4 h-4 mr-2" />
-                          Restore
+                        <Button size="sm" variant="ghost" className={`justify-start text-red-700 hover:text-red-800 ${sizeClasses.button}`}>
+                          <Archive className="w-4 h-4 mr-2" />
+                          Archive
                         </Button>
                       </AlertDialogTrigger>
                       <AlertDialogContent>
                         <AlertDialogHeader>
-                          <AlertDialogTitle>Restore Meal</AlertDialogTitle>
+                          <AlertDialogTitle>Archive Meal</AlertDialogTitle>
                           <AlertDialogDescription>
-                            Are you sure you want to restore "{meal.name}"? The meal will be moved back to the active meals section.
+                            Are you sure you want to archive "{meal.name}"? The meal will be moved to the archived section and can be restored later.
                           </AlertDialogDescription>
                         </AlertDialogHeader>
                         <AlertDialogFooter>
                           <AlertDialogCancel>Cancel</AlertDialogCancel>
                           <AlertDialogAction
-                            onClick={() => onRestore(meal.meal_id)}
-                            className="bg-green-600 hover:bg-green-700"
+                            onClick={() => onArchive(meal.meal_id)}
+                            className="bg-red-600 hover:bg-red-700"
                           >
-                            Restore Meal
+                            Archive Meal
                           </AlertDialogAction>
                         </AlertDialogFooter>
                       </AlertDialogContent>
                     </AlertDialog>
-                  )
-                ) : (
-                  <AlertDialog>
-                    <AlertDialogTrigger asChild>
-                      <Button size="sm" variant="ghost" className={`justify-start text-red-700 hover:text-red-800 ${sizeClasses.button}`}>
-                        <Archive className="w-4 h-4 mr-2" />
-                        Archive
-                      </Button>
-                    </AlertDialogTrigger>
-                    <AlertDialogContent>
-                      <AlertDialogHeader>
-                        <AlertDialogTitle>Archive Meal</AlertDialogTitle>
-                        <AlertDialogDescription>
-                          Are you sure you want to archive "{meal.name}"? The meal will be moved to the archived section and can be restored later.
-                        </AlertDialogDescription>
-                      </AlertDialogHeader>
-                      <AlertDialogFooter>
-                        <AlertDialogCancel>Cancel</AlertDialogCancel>
-                        <AlertDialogAction
-                          onClick={() => onArchive(meal.meal_id)}
-                          className="bg-red-600 hover:bg-red-700"
-                        >
-                          Archive Meal
-                        </AlertDialogAction>
-                      </AlertDialogFooter>
-                    </AlertDialogContent>
-                  </AlertDialog>
-                )}
-              </div>
-            </PopoverContent>
-          </Popover>
-        </div>
+                  )}
+                </div>
+              </PopoverContent>
+            </Popover>
+          </div>
+        )}
       </div>
     </div>
   );

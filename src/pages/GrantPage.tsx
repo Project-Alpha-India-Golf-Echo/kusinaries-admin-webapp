@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { useModal } from '@/contexts/ModalContext';
+import { useAuth } from '../contexts/AuthContext';
 import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
 import { useDocumentTitle } from '../hooks/useDocumentTitle';
@@ -27,6 +28,7 @@ export const GrantPage = () => {
   const [rejectingCook, setRejectingCook] = useState<Cook | null>(null);
   const [rejectionReason, setRejectionReason] = useState('');
   const { openCookDetails } = useModal();
+  const { isReadOnly } = useAuth();
   const PAGE_SIZE = 20;
 
   // Debounce search
@@ -68,7 +70,16 @@ export const GrantPage = () => {
   const loadMore = () => { if (!loading && hasMore) setPage(p => p + 1); };
 
 
+  const guardReadOnly = () => {
+    if (!isReadOnly) return false;
+    toast.info('Read-only mode enabled', {
+      description: 'Guest access cannot modify cook applications.',
+    });
+    return true;
+  };
+
   const submitRejection = async () => {
+    if (guardReadOnly()) return;
     if (!rejectingCook) return;
     setActionLoading(rejectingCook.id);
     const res = await rejectCook(rejectingCook.id, rejectionReason || 'Not specified');
@@ -82,6 +93,7 @@ export const GrantPage = () => {
   };
 
   const handleReopen = async (cook: Cook) => {
+    if (guardReadOnly()) return;
     setActionLoading(cook.id);
     const res = await reopenCookReview(cook.id);
     if (res.success) {
@@ -192,7 +204,7 @@ export const GrantPage = () => {
                       <div className="flex items-center space-x-2">
                         <Button size="sm" variant="secondary" onClick={() => openCookDetails(cook)} className="border-blue-200 bg-blue-50 text-blue-700 hover:bg-blue-100">Review</Button>
                         {(cook.for_review && (cook.is_verified || cook.is_rejected)) && (
-                          <Button size="sm" variant="outline" disabled={actionLoading === cook.id} onClick={() => handleReopen(cook)} className="border-blue-600 text-blue-700 hover:bg-blue-50">Reopen</Button>
+                          <Button size="sm" variant="outline" disabled={actionLoading === cook.id || isReadOnly} onClick={() => handleReopen(cook)} className="border-blue-600 text-blue-700 hover:bg-blue-50">Reopen</Button>
                         )}
                       </div>
                     </div>
@@ -225,7 +237,7 @@ export const GrantPage = () => {
           </div>
           <AlertDialogFooter>
             <AlertDialogCancel disabled={actionLoading === rejectingCook?.id}>Cancel</AlertDialogCancel>
-            <AlertDialogAction disabled={!rejectionReason || actionLoading === rejectingCook?.id} onClick={submitRejection} className="bg-red-600 hover:bg-red-700">Reject</AlertDialogAction>
+            <AlertDialogAction disabled={!rejectionReason || actionLoading === rejectingCook?.id || isReadOnly} onClick={submitRejection} className="bg-red-600 hover:bg-red-700">Reject</AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>

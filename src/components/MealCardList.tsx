@@ -11,6 +11,7 @@ interface MealCardListProps {
   onRestore?: (mealId: number) => void;
   onDuplicate?: (meal: Meal) => void;
   isArchived?: boolean;
+  readOnly?: boolean;
 }
 
 export const MealCardList: React.FC<MealCardListProps> = ({
@@ -19,7 +20,8 @@ export const MealCardList: React.FC<MealCardListProps> = ({
   onArchive,
   onRestore,
   onDuplicate,
-  isArchived = false
+  isArchived = false,
+  readOnly = false
 }) => {
   const formatDate = (dateString: string) => {
     return new Date(dateString).toLocaleDateString('en-US', {
@@ -152,48 +154,50 @@ export const MealCardList: React.FC<MealCardListProps> = ({
             </div>
 
             {/* Actions */}
-            <div className="flex items-center space-x-2 ml-4">
-              <Button
-                size="sm"
-                onClick={() => onEdit(meal)}
-                className="bg-blue-600 hover:bg-blue-700 text-white"
-              >
-                {meal.rejected ? 'Resubmit' : 'Edit'}
-              </Button>
-              
-              {!isArchived && onDuplicate && (
+            {!readOnly && (
+              <div className="flex items-center space-x-2 ml-4">
                 <Button
                   size="sm"
-                  variant="outline"
-                  onClick={() => onDuplicate(meal)}
-                  className="border-green-300 text-green-700 hover:bg-green-50"
+                  onClick={() => onEdit(meal)}
+                  className="bg-blue-600 hover:bg-blue-700 text-white"
                 >
-                  Duplicate
+                  {meal.rejected ? 'Resubmit' : 'Edit'}
                 </Button>
-              )}
-              
-              {isArchived ? (
-                onRestore && (
+                
+                {!isArchived && onDuplicate && (
                   <Button
                     size="sm"
                     variant="outline"
-                    onClick={() => onRestore(meal.meal_id)}
-                    className="border-blue-300 text-blue-700 hover:bg-blue-50"
+                    onClick={() => onDuplicate(meal)}
+                    className="border-green-300 text-green-700 hover:bg-green-50"
                   >
-                    Restore
+                    Duplicate
                   </Button>
-                )
-              ) : (
-                <Button
-                  size="sm"
-                  variant="outline"
-                  onClick={() => onArchive(meal.meal_id)}
-                  className="border-red-300 text-red-700 hover:bg-red-50"
-                >
-                  Archive
-                </Button>
-              )}
-            </div>
+                )}
+                
+                {isArchived ? (
+                  onRestore && (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => onRestore(meal.meal_id)}
+                      className="border-blue-300 text-blue-700 hover:bg-blue-50"
+                    >
+                      Restore
+                    </Button>
+                  )
+                ) : (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => onArchive(meal.meal_id)}
+                    className="border-red-300 text-red-700 hover:bg-red-50"
+                  >
+                    Archive
+                  </Button>
+                )}
+              </div>
+            )}
           </div>
         </div>
       </div>

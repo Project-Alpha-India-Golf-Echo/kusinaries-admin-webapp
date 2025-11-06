@@ -9,10 +9,12 @@ interface AuthContextType {
   userRole: string | null
   isAdmin: boolean
   signIn: (email: string, password: string) => Promise<{ error: { message: string } | AuthError | null }>
+  signInAsGuest: () => Promise<{ error: { message: string } | AuthError | null }>
   signOut: () => Promise<void>
   refreshUserRole: () => Promise<void>
   allowedRoles: string[]
   isVerifiedCook: boolean
+  isReadOnly: boolean
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined)
@@ -31,8 +33,10 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const [loading, setLoading] = useState(true)
   const [userRole, setUserRole] = useState<string | null>(null)
   // Base allowed roles now includes cook (with additional verification gating)
-  const allowedRoles = ['admin', 'user', 'cook']
+  const allowedRoles = ['admin', 'user', 'cook', 'guest']
   const [isVerifiedCook, setIsVerifiedCook] = useState(false)
+  const GUEST_EMAIL = import.meta.env.VITE_GUEST_EMAIL as string | undefined
+  const GUEST_PASSWORD = import.meta.env.VITE_GUEST_PASSWORD as string | undefined
 
   // Fetch user role from profiles table
   const fetchUserRole = async (userId: string) => {
@@ -157,6 +161,45 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     return { error: null }
   }
 
+  const signInAsGuest = async () => {
+    if (!GUEST_EMAIL || !GUEST_PASSWORD) {
+      return { error: { message: 'Guest access is not configured.' } }
+    }
+
+    const { data, error } = await supabase.auth.signInWithPassword({
+      email: GUEST_EMAIL,
+      password: GUEST_PASSWORD,
+    })
+
+    if (error) {
+      return { error }
+    }
+
+    const authUser = data.user
+    if (authUser) {
+      const role = await fetchUserRole(authUser.id)
+      setUserRole(role)
+
+      if (!role || !allowedRoles.includes(role)) {
+        await supabase.auth.signOut()
+        return { error: { message: 'Guest account is not allowed to access this application.' } }
+      }
+
+      if (role === 'cook') {
+        const verified = await fetchCookVerification(authUser.id)
+        setIsVerifiedCook(verified)
+        if (!verified) {
+          await supabase.auth.signOut()
+          return { error: { message: 'Cook not verified yet. Access denied.' } }
+        }
+      } else {
+        setIsVerifiedCook(false)
+      }
+    }
+
+    return { error: null }
+  }
+
   const signOut = async () => {
     await supabase.auth.signOut()
   }
@@ -170,10 +213,12 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         userRole,
         isAdmin: userRole === 'admin',
         signIn,
+        signInAsGuest,
         signOut,
   refreshUserRole,
   allowedRoles,
   isVerifiedCook,
+  isReadOnly: userRole === 'guest',
       }}
     >
       {children}

@@ -1,6 +1,7 @@
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue, } from "@/components/ui/select";
 import { Filter, Plus, Search, SortAsc, SortDesc, X } from 'lucide-react';
 import React, { useEffect, useState } from 'react';
+import { toast } from 'sonner';
 import { createDietaryTag, disableDietaryTag } from '../lib/supabaseQueries';
 import type { DietaryTag, MealCategory, MealFilters } from '../types';
 import {
@@ -25,6 +26,7 @@ interface MealFiltersComponentProps {
   onToggleArchived: () => void;
   userRole?: string;
   isVerifiedCook?: boolean;
+  readOnly?: boolean;
 }
 
 export const MealFiltersComponent: React.FC<MealFiltersComponentProps> = ({
@@ -34,7 +36,8 @@ export const MealFiltersComponent: React.FC<MealFiltersComponentProps> = ({
   showArchived,
   onToggleArchived,
   userRole,
-  isVerifiedCook
+  isVerifiedCook,
+  readOnly = false
 }) => {
   const [localSearch, setLocalSearch] = useState(filters.search || '');
   const [newTagName, setNewTagName] = useState('');
@@ -44,6 +47,12 @@ export const MealFiltersComponent: React.FC<MealFiltersComponentProps> = ({
   const [isDisableOpen, setIsDisableOpen] = useState(false);
   const [isDisabling, setIsDisabling] = useState(false);
   const [isAddOpen, setIsAddOpen] = useState(false);
+
+  const guardReadOnly = (description: string) => {
+    if (!readOnly) return false;
+    toast.info('Read-only mode enabled', { description });
+    return true;
+  };
 
   // Update local search when filters change (e.g., when cleared)
   useEffect(() => {
@@ -107,6 +116,10 @@ export const MealFiltersComponent: React.FC<MealFiltersComponentProps> = ({
   const hasActiveFilters = filters.search || filters.category || (filters.dietary_tags && filters.dietary_tags.length > 0) || filters.status;
 
   const handleAddDietaryTag = async () => {
+    if (guardReadOnly('Guest access cannot create dietary tags.')) {
+      setIsAddOpen(false);
+      return;
+    }
     const name = newTagName.trim();
     if (!name) {
       setTagError('Enter a tag name');
@@ -130,11 +143,16 @@ export const MealFiltersComponent: React.FC<MealFiltersComponentProps> = ({
   };
 
   const openDisableDialog = (tag: DietaryTag) => {
+    if (guardReadOnly('Guest access cannot disable dietary tags.')) return;
     setTagToDisable(tag);
     setIsDisableOpen(true);
   };
 
   const confirmDisableTag = async () => {
+    if (guardReadOnly('Guest access cannot disable dietary tags.')) {
+      setIsDisableOpen(false);
+      return;
+    }
     if (!tagToDisable) return;
     setIsDisabling(true);
     const res = await disableDietaryTag(tagToDisable.tag_id);
@@ -308,7 +326,8 @@ export const MealFiltersComponent: React.FC<MealFiltersComponentProps> = ({
                       e.stopPropagation();
                       openDisableDialog(tag);
                     }}
-                    className="text-gray-400 hover:text-red-600 transition-colors ml-1"
+                    className="text-gray-400 hover:text-red-600 transition-colors ml-1 disabled:cursor-not-allowed disabled:opacity-40"
+                    disabled={readOnly}
                     aria-label="Disable tag"
                   >
                     <X className="w-4 h-4" />
@@ -319,8 +338,13 @@ export const MealFiltersComponent: React.FC<MealFiltersComponentProps> = ({
             ))}
             <button
               type="button"
-              onClick={() => { setIsAddOpen(true); setTagError(''); }}
-              className={`flex items-center gap-2 px-3 py-1 rounded-full text-sm transition-colors mr-1 bg-green-100 text-green-700 hover:bg-gray-200`}
+              onClick={() => {
+                if (guardReadOnly('Guest access cannot create dietary tags.')) return;
+                setIsAddOpen(true);
+                setTagError('');
+              }}
+              className={`flex items-center gap-2 px-3 py-1 rounded-full text-sm transition-colors mr-1 bg-green-100 text-green-700 hover:bg-gray-200 disabled:cursor-not-allowed disabled:opacity-60`}
+              disabled={readOnly}
             >
               <Plus className="w-4 h-4" /> Add new dietary tag
             </button>
@@ -364,7 +388,7 @@ export const MealFiltersComponent: React.FC<MealFiltersComponentProps> = ({
           <AlertDialogFooter>
             <AlertDialogCancel disabled={isDisabling} onClick={() => setTagToDisable(null)}>Cancel</AlertDialogCancel>
             <AlertDialogAction
-              disabled={isDisabling}
+              disabled={isDisabling || readOnly}
               onClick={(e) => { e.preventDefault(); confirmDisableTag(); }}
               className="bg-red-600 hover:bg-red-700"
             >
@@ -394,7 +418,7 @@ export const MealFiltersComponent: React.FC<MealFiltersComponentProps> = ({
           <AlertDialogFooter>
             <AlertDialogCancel disabled={isCreatingTag} onClick={() => { setNewTagName(''); setTagError(''); }}>Cancel</AlertDialogCancel>
             <AlertDialogAction
-              disabled={isCreatingTag}
+              disabled={isCreatingTag || readOnly}
               onClick={(e) => { e.preventDefault(); handleAddDietaryTag(); }}
             >
               {isCreatingTag ? 'Adding...' : 'Add Tag'}

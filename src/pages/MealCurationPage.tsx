@@ -58,7 +58,7 @@ const calculateMealPrice = (meal: Meal): number => {
 };
 
 export const MealCurationPage = () => {
-  const { userRole, isVerifiedCook, user } = useAuth();
+  const { userRole, isVerifiedCook, user, isReadOnly } = useAuth();
   const [allMeals, setAllMeals] = useState<Meal[]>([]);
   const [allArchivedMeals, setAllArchivedMeals] = useState<Meal[]>([]);
   const [dietaryTags, setDietaryTags] = useState<DietaryTag[]>([]);
@@ -257,11 +257,34 @@ export const MealCurationPage = () => {
     }
   };
 
+  const guardReadOnly = () => {
+    if (!isReadOnly) return false;
+    toast.info('Read-only mode enabled', {
+      description: 'Guest access allows viewing data only.',
+    });
+    return true;
+  };
+
+  const handleCreateMeal = () => {
+    if (isReadOnly) {
+      toast.info('Read-only mode enabled', {
+        description: 'Guest access can preview the meal form but cannot submit changes.',
+      });
+    }
+    openCreateMealModal();
+  };
+
   const handleEditMeal = (meal: Meal) => {
+    if (isReadOnly) {
+      toast.info('Read-only mode enabled', {
+        description: 'Guest access can preview meal details but cannot save edits.',
+      });
+    }
     openEditMealModal(meal);
   };
 
   const handleArchiveMeal = async (mealId: number) => {
+    if (guardReadOnly()) return;
     const result = await archiveMeal(mealId);
     if (result.success) {
       loadInitialData();
@@ -271,6 +294,7 @@ export const MealCurationPage = () => {
   };
 
   const handleRestoreMeal = async (mealId: number) => {
+    if (guardReadOnly()) return;
     const result = await restoreMeal(mealId);
     if (result.success) {
       loadInitialData();
@@ -285,6 +309,7 @@ export const MealCurationPage = () => {
   };
 
   const handleDuplicateMeal = async (meal: Meal) => {
+    if (guardReadOnly()) return;
     const id = meal.meal_id;
     toast.loading('Duplicating meal...', { id: `dup-${id}` });
     const result = await duplicateMeal(id);
@@ -320,7 +345,7 @@ export const MealCurationPage = () => {
             <div className="flex items-center space-x-3">
               {!showArchived && (
                 <Button
-                  onClick={openCreateMealModal}
+                  onClick={handleCreateMeal}
                   className="bg-gradient-to-r from-green-600 to-green-700 hover:from-green-700 hover:to-green-800 text-white px-5 py-2.5 rounded-lg font-medium transition-all duration-200 flex items-center space-x-2 shadow-lg hover:shadow-xl transform"
                 >
                   <Plus className="w-4 h-4" />
@@ -347,6 +372,7 @@ export const MealCurationPage = () => {
           onToggleArchived={handleToggleArchived}
           userRole={userRole || undefined}
           isVerifiedCook={isVerifiedCook}
+          readOnly={isReadOnly}
         />
 
         {/* View Mode Selector */}
@@ -393,7 +419,7 @@ export const MealCurationPage = () => {
               </p>
               {!showArchived && Object.keys(filters).length === 0 && (
                 <Button
-                  onClick={openCreateMealModal}
+                  onClick={handleCreateMeal}
                   className="bg-gradient-to-r from-green-600 to-green-700 hover:from-green-700 hover:to-green-800"
                 >
                   <Plus className="w-4 h-4 mr-2" />
@@ -411,6 +437,7 @@ export const MealCurationPage = () => {
             onRestore={showArchived ? handleRestoreMeal : undefined}
             onDuplicate={!showArchived ? handleDuplicateMeal : undefined}
             isArchived={showArchived}
+            readOnly={isReadOnly}
           />
         )}
 

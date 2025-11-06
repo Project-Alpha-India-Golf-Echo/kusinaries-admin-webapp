@@ -10,7 +10,7 @@ import { updateUserProfile, changeUserPassword } from '../lib/supabaseQueries'
 
 export const SettingsPage = () => {
   useDocumentTitle('Settings');
-  const { user, refreshUserRole } = useAuth()
+  const { user, refreshUserRole, isReadOnly } = useAuth()
   const [isLoading, setIsLoading] = useState(false)
 
   // Profile form state
@@ -33,6 +33,11 @@ export const SettingsPage = () => {
 
   // Save function
   const handleSave = async () => {
+    if (isReadOnly) {
+      alert('Guest access is read-only. Sign in with an account to update settings.')
+      return
+    }
+
     setIsLoading(true)
 
     try {
@@ -120,6 +125,7 @@ export const SettingsPage = () => {
               value={profileData.fullName}
               onChange={(e) => setProfileData(prev => ({ ...prev, fullName: e.target.value }))}
               className="w-full p-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+              disabled={isReadOnly}
             />
           </div>
           <div className="space-y-2">
@@ -151,6 +157,7 @@ export const SettingsPage = () => {
               onChange={(e) => setProfileData(prev => ({ ...prev, currentPassword: e.target.value }))}
               placeholder="Enter current password"
               className="w-full p-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+              disabled={isReadOnly}
             />
           </div>
           <div className="space-y-2">
@@ -161,6 +168,7 @@ export const SettingsPage = () => {
               onChange={(e) => setProfileData(prev => ({ ...prev, newPassword: e.target.value }))}
               placeholder="Enter new password"
               className="w-full p-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+              disabled={isReadOnly}
             />
           </div>
           <div className="space-y-2">
@@ -195,7 +203,7 @@ export const SettingsPage = () => {
 
           {/* Save Button */}
           <div className="flex justify-end pt-6 border-t mt-6">
-            <Button onClick={handleSave} disabled={isLoading}>
+            <Button onClick={handleSave} disabled={isLoading || isReadOnly}>
               <Save className="h-4 w-4 mr-2" />
               {isLoading ? 'Saving...' : 'Save Changes'}
             </Button>

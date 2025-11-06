@@ -13,6 +13,7 @@ interface CondimentSectionProps {
   onQuantityChange: (condimentId: number, quantity: string) => void;
   onCondimentRemove: (condimentId: number) => void;
   userRole?: string; // Add userRole prop to filter out cook-created condiments for admin users
+  readOnly?: boolean;
 }
 
 export const CondimentSection: React.FC<CondimentSectionProps> = ({
@@ -20,7 +21,8 @@ export const CondimentSection: React.FC<CondimentSectionProps> = ({
   onCondimentSelect,
   onQuantityChange,
   onCondimentRemove,
-  userRole
+  userRole,
+  readOnly = false
 }) => {
   const [condiments, setCondiments] = useState<Condiment[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
@@ -74,10 +76,12 @@ export const CondimentSection: React.FC<CondimentSectionProps> = ({
   };
 
   const startPendingAdd = (condimentId: number) => {
+    if (readOnly) return;
     setPendingAdds(prev => ({ ...prev, [condimentId]: '' }));
   };
 
   const cancelPendingAdd = (condimentId: number) => {
+    if (readOnly) return;
     setPendingAdds(prev => {
       const clone = { ...prev };
       delete clone[condimentId];
@@ -86,10 +90,12 @@ export const CondimentSection: React.FC<CondimentSectionProps> = ({
   };
 
   const updatePendingQuantity = (condimentId: number, quantity: string) => {
+    if (readOnly) return;
     setPendingAdds(prev => ({ ...prev, [condimentId]: quantity }));
   };
 
   const confirmAdd = (condiment: Condiment) => {
+    if (readOnly) return;
     const draft = pendingAdds[condiment.condiment_id];
     if (!draft || !validateCondimentQuantity(draft.trim())) return;
     if (!isCondimentSelected(condiment.condiment_id)) {
@@ -221,6 +227,7 @@ export const CondimentSection: React.FC<CondimentSectionProps> = ({
           size="sm"
           onClick={openCreateCondimentModal}
           className="gap-2 text-purple-700 border-purple-300 hover:bg-purple-100 hover:border-purple-400"
+          disabled={readOnly}
         >
           <Plus className="w-4 h-4" />
           Add New Condiment
@@ -301,6 +308,7 @@ export const CondimentSection: React.FC<CondimentSectionProps> = ({
                         onChange={(value) => updatePendingQuantity(condiment.condiment_id, value)}
                         unitType={condiment.unit_type}
                         className="w-full"
+                        disabled={readOnly}
                       />
                       {!validateCondimentQuantity(pendingQty.trim()) && pendingQty.trim() && (
                         <div className="absolute -bottom-5 left-0 text-[10px] text-red-500 whitespace-nowrap">Invalid format</div>
@@ -310,7 +318,7 @@ export const CondimentSection: React.FC<CondimentSectionProps> = ({
                       type="button"
                       size="sm"
                       onClick={() => confirmAdd(condiment)}
-                      disabled={!pendingQty.trim() || !validateCondimentQuantity(pendingQty.trim())}
+                      disabled={readOnly || !pendingQty.trim() || !validateCondimentQuantity(pendingQty.trim())}
                       className="bg-green-600 hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed shadow-sm"
                     >
                       <Check className="w-4 h-4" />
@@ -321,6 +329,7 @@ export const CondimentSection: React.FC<CondimentSectionProps> = ({
                       variant="outline"
                       onClick={() => cancelPendingAdd(condiment.condiment_id)}
                       className="text-red-600 hover:text-red-700 hover:bg-red-50 border-red-200 hover:border-red-300 shadow-sm"
+                      disabled={readOnly}
                     >
                       <XIcon className="w-4 h-4" />
                     </Button>
@@ -332,6 +341,7 @@ export const CondimentSection: React.FC<CondimentSectionProps> = ({
                       onChange={(value) => onQuantityChange(condiment.condiment_id, value)}
                       unitType={condiment.unit_type}
                       className="flex-1"
+                      disabled={readOnly}
                     />
                     <span className="inline-flex items-center gap-1 text-[10px] px-2.5 py-1.5 rounded-full bg-purple-600 text-white font-bold uppercase tracking-wide shadow-sm whitespace-nowrap">
                       <Check className="w-3 h-3" />
@@ -344,6 +354,7 @@ export const CondimentSection: React.FC<CondimentSectionProps> = ({
                       onClick={() => onCondimentRemove(condiment.condiment_id)}
                       className="text-red-600 hover:text-red-700 hover:bg-red-50 border-red-200 hover:border-red-300 shadow-sm"
                       title="Remove condiment"
+                      disabled={readOnly}
                     >
                       <Trash2 className="w-4 h-4" />
                     </Button>
@@ -354,6 +365,7 @@ export const CondimentSection: React.FC<CondimentSectionProps> = ({
                     size="sm"
                     onClick={() => startPendingAdd(condiment.condiment_id)}
                     className="bg-purple-600 hover:bg-purple-700 text-white shadow-sm hover:shadow-md transition-shadow px-4 py-2 w-full"
+                    disabled={readOnly}
                   >
                     Add
                   </Button>

@@ -5,6 +5,7 @@ import { useModal } from '../contexts/ModalContext';
 import { useDocumentTitle } from '../hooks/useDocumentTitle';
 import { IngredientCard } from '../components/IngredientCard';
 import { IngredientFiltersComponent } from '../components/IngredientFiltersComponent';
+import { useAuth } from '../contexts/AuthContext';
 import {
     getAllIngredients,
     getArchivedIngredients,
@@ -13,6 +14,7 @@ import {
 } from '../lib/supabaseQueries';
 import type { Ingredient, IngredientCategory } from '../types';
 import { Plus } from 'lucide-react';
+import { toast } from 'sonner';
 
 interface IngredientFilters {
     search?: string;
@@ -43,6 +45,7 @@ export const IngredientsPage = () => {
     const [filters, setFilters] = useState<IngredientFilters>({});
     const [showArchived, setShowArchived] = useState(false);
     const { openCreateIngredientModal, openEditIngredientModal } = useModal();
+    const { isReadOnly } = useAuth();
 
     useDocumentTitle('Ingredients');
 
@@ -117,17 +120,28 @@ export const IngredientsPage = () => {
     };
 
     // Handle creating a new ingredient
+    const guardReadOnly = () => {
+        if (!isReadOnly) return false;
+        toast.info('Read-only mode enabled', {
+            description: 'Guest access allows viewing data only.',
+        });
+        return true;
+    };
+
     const handleCreateIngredient = () => {
+        if (guardReadOnly()) return;
         openCreateIngredientModal();
     };
 
     // Handle editing an ingredient
     const handleEditIngredient = (ingredient: Ingredient) => {
+        if (guardReadOnly()) return;
         openEditIngredientModal(ingredient);
     };
 
     // Handle archiving an ingredient
     const handleArchiveIngredient = async (ingredientId: number) => {
+        if (guardReadOnly()) return;
         try {
             const result = await archiveIngredient(ingredientId);
 
@@ -146,6 +160,7 @@ export const IngredientsPage = () => {
 
     // Handle restoring an ingredient
     const handleRestoreIngredient = async (ingredientId: number) => {
+        if (guardReadOnly()) return;
         try {
             const result = await restoreIngredient(ingredientId);
 
@@ -228,6 +243,7 @@ export const IngredientsPage = () => {
                     <Button
                         onClick={handleCreateIngredient}
                         className="mt-4 sm:mt-0"
+                        disabled={isReadOnly}
                     >
                         <Plus className="w-4 h-4" />
                         Add New Ingredient
@@ -282,7 +298,7 @@ export const IngredientsPage = () => {
                                     Clear Filters
                                 </Button>
                             ) : !showArchived ? (
-                                <Button onClick={handleCreateIngredient}>
+                                <Button onClick={handleCreateIngredient} disabled={isReadOnly}>
                                     Add Your First Ingredient
                                 </Button>
                             ) : null}
@@ -295,9 +311,9 @@ export const IngredientsPage = () => {
                         <IngredientCard
                             key={ingredient.ingredient_id}
                             ingredient={ingredient}
-                            onEdit={handleEditIngredient}
-                            onArchive={showArchived ? undefined : handleArchiveIngredient}
-                            onRestore={showArchived ? handleRestoreIngredient : undefined}
+                            onEdit={isReadOnly ? undefined : handleEditIngredient}
+                            onArchive={showArchived || isReadOnly ? undefined : handleArchiveIngredient}
+                            onRestore={showArchived && !isReadOnly ? handleRestoreIngredient : undefined}
                             isArchived={showArchived}
                         />
                     ))}

@@ -3,10 +3,12 @@ import { Outlet } from 'react-router-dom'
 import { BUILD, shortVersion } from '../lib/version'
 import { CacheDebugPanel } from './CacheDebugPanel'
 import { Sidebar } from './Sidebar'
+import { useAuth } from '../contexts/AuthContext'
 
 export const Layout = () => {
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
+  const { isReadOnly } = useAuth()
 
   return (
     <div className="flex h-screen bg-gray-50 overflow-hidden">
@@ -23,6 +25,11 @@ export const Layout = () => {
         {/* Main content area */}
         <main className="flex-1 overflow-y-auto bg-white flex flex-col">
           <div className="p-4 md:p-6 flex-1">
+            {isReadOnly && (
+              <div className="mb-4 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-700">
+                You are browsing in guest mode. Viewing is allowed, but changes are disabled.
+              </div>
+            )}
             <div className="w-full h-full">
               <Outlet />
             </div>

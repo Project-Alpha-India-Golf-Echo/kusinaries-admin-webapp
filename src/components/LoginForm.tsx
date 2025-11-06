@@ -19,11 +19,12 @@ const loginSchema = z.object({
 type LoginForm = z.infer<typeof loginSchema>
 
 export const LoginForm = () => {
-  const { signIn, allowedRoles } = useAuth()
+  const { signIn, signInAsGuest, allowedRoles } = useAuth()
   const navigate = useNavigate()
   const location = useLocation()
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
+  const [guestLoading, setGuestLoading] = useState(false)
 
   useDocumentTitle('Login');
 
@@ -35,6 +36,11 @@ export const LoginForm = () => {
     },
   })
 
+  const navigateToDestination = () => {
+    const from = location.state?.from?.pathname || '/'
+    navigate(from, { replace: true })
+  }
+
   const onSubmit = async (data: LoginForm) => {
     setLoading(true)
     setError(null)
@@ -44,12 +50,25 @@ export const LoginForm = () => {
     if (error) {
       setError(error.message)
     } else {
-      // Navigate to the intended page or dashboard
-      const from = location.state?.from?.pathname || '/'
-      navigate(from, { replace: true })
+      navigateToDestination()
     }
     
     setLoading(false)
+  }
+
+  const handleGuestLogin = async () => {
+    setGuestLoading(true)
+    setError(null)
+
+    const { error } = await signInAsGuest()
+
+    if (error) {
+      setError(error.message)
+    } else {
+      navigateToDestination()
+    }
+
+    setGuestLoading(false)
   }
 
   return (
@@ -76,7 +95,7 @@ export const LoginForm = () => {
           <CardHeader className="pb-6">
             <CardTitle className="text-center text-xl font-semibold">Sign In</CardTitle>
             <CardDescription className="text-center">
-              Enter credentials. Allowed roles: {allowedRoles.join(', ')} (cooks must be verified).
+              Enter credentials. Allowed roles: {allowedRoles.map(role => role === 'guest' ? 'guest (read only)' : role).join(', ')} (cooks must be verified).
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -92,6 +111,7 @@ export const LoginForm = () => {
                         <Input
                           type="email"
                           placeholder="admin@example.com"
+                          disabled={loading || guestLoading}
                           {...field}
                         />
                       </FormControl>
@@ -109,6 +129,7 @@ export const LoginForm = () => {
                         <Input
                           type="password"
                           placeholder="Enter your password"
+                          disabled={loading || guestLoading}
                           {...field}
                         />
                       </FormControl>
@@ -124,7 +145,7 @@ export const LoginForm = () => {
                 <Button 
                   type="submit" 
                   className="w-full h-11 text-base font-medium bg-black hover:bg-gray-800 focus:ring-2 focus:ring-gray-500 focus:ring-offset-2" 
-                  disabled={loading}
+                  disabled={loading || guestLoading}
                 >
                   {loading ? (
                     <>
@@ -135,6 +156,18 @@ export const LoginForm = () => {
                     'Sign In'
                   )}
                 </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="w-full h-11 text-base font-medium"
+                  disabled={loading || guestLoading}
+                  onClick={handleGuestLogin}
+                >
+                  {guestLoading ? 'Preparing guest access…' : 'Continue as Guest (Read Only)'}
+                </Button>
+                <p className="text-xs text-center text-gray-500">
+                  Guest access lets you explore data without making changes.
+                </p>
               </form>
             </Form>
           </CardContent>
